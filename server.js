@@ -125,51 +125,6 @@ app.post('/api/embedding', validateEmbeddingRequest, async (req, res) => {
   }
 });
 
-// Proxy routes для семантического анализа
-app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
-    try {
-        const formData = new FormData();
-        const sharedDir = '/app/shared_data';  // Путь в контейнере dvizhenie
-        const timeStamp =  Date.now().toString();
-        // Создаем уникальную подпапку для этой загрузки
-        const uploadDir = path.join(sharedDir, timeStamp);
-        fs.mkdirSync(uploadDir, { recursive: true });
-        
-        // Перемещаем файлы в общую папку
-        const filePaths = [];
-        req.files.forEach(file => {
-            const newPath = path.join(uploadDir, file.originalname);
-            fs.renameSync(file.path, newPath);
-            filePaths.push(newPath);
-            
-            formData.append('files', fs.createReadStream(newPath), {
-                filename: file.originalname,
-                contentType: file.mimetype
-            });
-        });
-        
-        // Добавляем остальные поля
-        formData.append('collection_name', req.body.collection_name);
-        formData.append('processes', req.body.processes || 2);
-        formData.append('upload_dir', "/vbd/shared_data/"+timeStamp);  // Передаем путь к папке
-        console.log(formData);
-        
-        const response = await axios.post(`${SEMANTIC_SERVICE_URL}/sematic_upload`, formData, {
-            headers: {
-                ...formData.getHeaders(),
-                'Content-Length': formData.getLengthSync()
-            }
-        });
-        
-        res.json(response.data);
-    } catch (error) {
-        console.error('Upload error:', error);
-        res.status(500).json({
-            error: 'Upload failed',
-            message: error.message
-        });
-    }
-});
 app.post('/api/semantic/semantic_search', async (req, res) => {
     try {
         const response = await axios.post(`${SEMANTIC_SERVICE_URL}/semantic_search`, {
