@@ -1,0 +1,25 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+}
+
+.container {
+    max-width: 1200px;
+}
+
+textarea {
+    resize: none;
+}
+
+#result {
+    min-height: 200px;
+    border: 1px solid #dee2e6;
+}
+
+.alert {
+    display: none;
+}
+
+.d-none {
+    display: none !important;
+}

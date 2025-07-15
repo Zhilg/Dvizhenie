@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../assets/js/diff_match_patch_uncompressed.js"></script>
+    <title>Нормализация текста</title>
+    <link rel="stylesheet" href="../assets/css/bootstrap.min.css">
+    <link rel="stylesheet" href="../assets/css/normalize.css">
+    <style>
+       
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">Нормализация текста</h1>
+        
+        <div class="row">
+            <div class="col-md-6 text-area-container">
+                <div class="file-upload-wrapper">
+                    <label class="file-upload-label" id="fileLabel">
+                        Выберите файл или перетащите сюда
+                        <br>
+                        <small class="text-muted">Поддерживаются .txt</small>
+                    </label>
+                    <input type="file" id="fileInput" class="file-upload-input" accept=".txt">
+                </div>
+                
+                <textarea id="sourceText" class="form-control mb-3" rows="10" 
+                          placeholder="Или введите текст для нормализации"></textarea>
+                <button id="processBtn" class="btn btn-primary w-100">Нормализовать</button>
+            </div>
+            
+            <div class="col-md-6">
+                <div id="result" class="mb-3">Здесь будет результат...</div>
+                <div id="stats" class="small text-muted"></div>
+            </div>
+            <div class="col-md-6">
+                <div id="comparison" class="mb-3">Здесь будет сравнение...</div>
+                <div id="stats" class="small text-muted"></div>
+            </div>
+            
+        </div>
+        
+        <div id="error" class="alert alert-danger d-none"></div>
+        
+        <div class="card mt-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">Легенда</h5>
+            </div>
+            <div class="card-body">
+                <div class="legend-item"><span class="diff-added">Зеленый фон</span> - добавленные элементы</div>
+                <div class="legend-item"><span class="diff-deleted">Красный фон</span> - удаленные элементы</div>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript" src="../assets/js/normalise.js"></script>
+</body>
+</html>
+

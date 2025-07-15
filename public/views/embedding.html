@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Текстовая векторизация</title>
+    <link rel="stylesheet" href="../assets/css/bootstrap.min.css">
+    <link rel="stylesheet" href="../assets/css/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary: #4361ee;
+            --primary-light: #e6f0ff;
+            --secondary: #3f37c9;
+            --success: #4cc9f0;
+            --danger: #f72585;
+            --light: #f8f9fa;
+            --dark: #212529;
+        }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: #f5f7fa;
+            color: var(--dark);
+            line-height: 1.6;
+        }
+        
+        .grid-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        h1, h2 {
+            color: var(--secondary);
+            margin-bottom: 1.5rem;
+        }
+        
+        .custom-file-upload {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background: var(--primary);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        
+        .custom-file-upload:hover {
+            background: var(--secondary);
+            transform: translateY(-2px);
+        }
+        
+        #file-upload {
+            display: none;
+        }
+        
+        textarea.form-control {
+            min-height: 300px;
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+            padding: 1rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+        }
+        
+        textarea.form-control:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 0.25rem rgba(67, 97, 238, 0.25);
+        }
+        
+        .grid-button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 1rem;
+        }
+        
+        .grid-button:hover {
+            background: var(--secondary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        #vector-results {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-top: 2rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            display: none;
+        }
+        
+        .vector-value {
+            font-family: 'Fira Code', monospace;
+            background: var(--light);
+            padding: 0.5rem;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        
+        .similarity-badge {
+            font-size: 1.2rem;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            background: linear-gradient(135deg, var(--primary), var(--success));
+            color: white;
+            display: inline-block;
+            margin-top: 1rem;
+        }
+        
+        @media (max-width: 768px) {
+            .grid-container {
+                padding: 1rem;
+            }
+            
+            textarea.form-control {
+                min-height: 200px;
+            }
+        }
+        .similarity-badge {
+            font-size: 1.2rem;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            color: white;
+            display: inline-block;
+            margin-top: 1rem;
+        }
+
+        .text-center h4 {
+            margin-bottom: 0.5rem;
+        }
+
+        .vector-value {
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .angle-badge {
+            font-size: 1.2rem;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            background: linear-gradient(135deg, #f72585, #b5179e);
+            color: white;
+            display: inline-block;
+            margin-top: 0.5rem;
+        }
+        
+        .vector-pair {
+            display: inline-block;
+            margin: 0.2rem;
+            padding: 0.3rem 0.6rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="grid-container">
+        <h1 class="text-center mb-4">Текстовая векторизация</h1>
+        
+        <div class="row g-3 mb-4">
+            <div class="col-12 col-md-6">
+                <div class="card p-3">
+                    <label for="file-upload" class="custom-file-upload">
+                        <i class="bi bi-cloud-arrow-up-fill"></i> Загрузить текст
+                    </label>
+                    <input id="file-upload" type="file" accept=".txt,.docx,.pdf" />
+                    <button id="process-file" class="grid-button">
+                        <i class="bi bi-upload"></i> Обработать файл
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row g-3 mb-4">
+            <div class="col-12 col-md-6">
+                <div class="card p-3 h-100">
+                    <h3>Исходный текст</h3>
+                    <textarea id="originalText" class="form-control" placeholder="Загрузите файл или введите текст" readonly></textarea>
+                </div>
+            </div>
+            <div class="col-12 col-md-6">
+                <div class="card p-3 h-100">
+                    <h3>Модифицированный текст</h3>
+                    <textarea id="modifiedText" class="form-control" placeholder="Введите синонимичный вариант"></textarea>
+                    <button id="save-changes" class="grid-button">
+                        <i class="bi bi-save"></i> Сохранить изменения
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card p-3">
+                    <button id="check-synonymy" class="grid-button">
+                        <i class="bi bi-graph-up"></i> Проверить синонимию
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="vector-results">
+        <h2 class="text-center mb-4">Результаты анализа</h2>
+        
+        <div class="row g-3">
+            <div class="col-12">
+                <h4>Сравнение векторов:</h4>
+                <div class="mb-2">Формат: (оригинал, модифицированный, расхождение %)</div>
+                <div id="vector-comparison" class="vector-value"></div>
+                <div class="mt-2 text-muted">Полная размерность: <span id="vector-dimension"></span></div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-6 text-center">
+                <h4>Косинусная близость</h4>
+                <div id="similarity-badge" class="similarity-badge"></div>
+                <div id="similarity-text" class="mt-2"></div>
+            </div>
+            
+            <div class="col-md-6 text-center">
+                <h4>Угловое расхождение</h4>
+                <div id="angular-badge" class="angle-badge"></div>
+                <div id="angle-text" class="mt-2"></div>
+            </div>
+        </div>
+        
+        <div id="developer-value-container" class="mt-4 p-3 bg-light rounded" style="display: none;">
+            <h5><i class="bi bi-code-slash"></i> Значение разработчика</h5>
+            <pre id="developer-value" class="mt-2"></pre>
+        </div>
+    </div>
+        </div>
+    </div>
+
+    <script src="../assets/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables to store text content
+        const DOCKER_SERVICE_URL_EMBEDDING = 'http://localhost:8000/embedding';
+        const DOCKER_SERVICE_URL_SIMILARITY = "http://localhost:8000/similarity";
+        let originalText = '';
+        let modifiedText = '';
+        let filePath = '';
+        let modifiedPath = '';
+        
+        // DOM elements
+        const fileUpload = document.getElementById('file-upload');
+        const originalTextArea = document.getElementById('originalText');
+        const modifiedTextArea = document.getElementById('modifiedText');
+        const processFileBtn = document.getElementById('process-file');
+        const saveChangesBtn = document.getElementById('save-changes');
+        const checkSynonymyBtn = document.getElementById('check-synonymy');
+        const resultsContainer = document.getElementById('vector-results');
+        
+        // Event listeners
+        fileUpload.addEventListener('change', handleFileUpload);
+        processFileBtn.addEventListener('click', processFile);
+        saveChangesBtn.addEventListener('click', saveModifiedText);
+        checkSynonymyBtn.addEventListener('click', checkTextSimilarity);
+        
+        // Show selected file name
+        fileUpload.addEventListener('change', function(e) {
+            const label = document.querySelector('.custom-file-upload');
+            if (this.files.length > 0) {
+                label.innerHTML = `<i class="bi bi-file-text"></i> ${this.files[0].name}`;
+            } else {
+                label.innerHTML = '<i class="bi bi-cloud-arrow-up-fill"></i> Загрузить текст';
+            }
+        });
+        
+        // Handle file upload
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            try {
+                const content = await readFileContent(file);
+                originalText = content;
+                modifiedText = content;
+                originalTextArea.value = content;
+                modifiedTextArea.value = content;
+                
+                // In a real app, you would send this to your backend for saving
+                filePath = `uploads/${file.name}`;
+                console.log('File uploaded:', filePath);
+            } catch (error) {
+                console.error('Error reading file:', error);
+                alert('Ошибка при чтении файла');
+            }
+        }
+        
+        // Read file content
+        function readFileContent(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (event) => resolve(event.target.result);
+                reader.onerror = (error) => reject(error);
+                reader.readAsText(file);
+            });
+        }
+        
+        // Process file (mock function)
+        function processFile() {
+            if (!originalText) {
+                alert('Пожалуйста, загрузите файл сначала');
+                return;
+            }
+            
+            // In a real app, you would send this to your backend
+            console.log('Processing file:', filePath);
+            alert('Файл успешно обработан');
+        }
+        
+        // Save modified text
+        function saveModifiedText() {
+            modifiedText = modifiedTextArea.value;
+            
+            if (!modifiedText) {
+                alert('Пожалуйста, введите модифицированный текст');
+                return;
+            }
+            
+            if (!filePath) {
+                alert('Пожалуйста, загрузите файл сначала');
+                return;
+            }
+            
+            // In a real app, you would send this to your backend for saving
+            const fileName = filePath.split('/').pop();
+            modifiedPath = `uploads/modified_${fileName}`;
+            console.log('Modified text saved to:', modifiedPath);
+            alert('Изменения успешно сохранены');
+        }
+        
+        // Check text similarity
+async function checkTextSimilarity() {
+    if (!originalText || !modifiedText) {
+        alert('Пожалуйста, загрузите файл и введите модифицированный текст');
+        return;
+    }
+
+    try {
+        checkSynonymyBtn.disabled = true;
+        checkSynonymyBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Обработка...';
+        
+        console.log('Отправляемый текст 1:', originalText.substring(0, 50) + '...');
+        console.log('Отправляемый текст 2:', modifiedText.substring(0, 50) + '...');
+        
+        // Кодируем оба текста в Base64
+        const encodedText1 = btoa(unescape(encodeURIComponent(originalText)));
+        const encodedText2 = btoa(unescape(encodeURIComponent(modifiedText)));
+        
+        const response = await fetch('/api/embedding', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                text1: encodedText1,
+                text2: encodedText2 
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Полученные данные:', data);
+        
+        // Форматируем результаты для отображения
+        const formattedResults = {
+            embedding1: data.embedding1,
+            embedding2: data.embedding2,
+            similarity: data.cosine_similarity,
+            angular_similarity: data.angular_similarity_radians,
+            developer_value: data.developer_value || null
+        };
+        
+        displayResults(formattedResults);
+        
+    } catch (error) {
+        console.error('Ошибка при проверке синонимии:', error);
+        alert(`Ошибка: ${error.message}`);
+    } finally {
+        checkSynonymyBtn.disabled = false;
+        checkSynonymyBtn.innerHTML = '<i class="bi bi-graph-up"></i> Проверить синонимию';
+    }
+}
+        
+
+
+function displayResults(results) {
+
+            const vectorPairs = [];
+            const elementsToShow = Math.min(results.embedding1.length, results.embedding2.length);
+            
+            for (let i = 0; i < elementsToShow; i++) {
+                const elem1 = results.embedding1[i];
+                const elem2 = results.embedding2[i];
+                const diff = Math.abs(elem1 - elem2);
+                const diffPercent = (diff * 100).toFixed(2);
+                vectorPairs.push({
+                    original: elem1.toFixed(6),
+                    modified: elem2.toFixed(6),
+                    diff: diffPercent
+                });
+            }
+
+            // Format vector pairs for display
+            const vectorComparison = document.getElementById('vector-comparison');
+            vectorComparison.innerHTML = '';
+            
+            vectorPairs.forEach(pair => {
+                const pairElement = document.createElement('span');
+                pairElement.className = 'vector-pair';
+                pairElement.textContent = `(${pair.original}, ${pair.modified}, ${pair.diff}%)`;
+                vectorComparison.appendChild(pairElement);
+            });
+
+            // Show full dimension
+            document.getElementById('vector-dimension').textContent = 
+                `${results.embedding1.length} элементов`;
+            
+            // Show cosine similarity
+            const cosineSimilarity = parseFloat(results.similarity);
+            document.getElementById('similarity-badge').textContent = cosineSimilarity.toFixed(6);
+            
+            // Set cosine similarity text
+            const similarityText = document.getElementById('similarity-text');
+            if (cosineSimilarity > 0.8) {
+                similarityText.innerHTML = '<span class="text-success">Высокая схожесть</span>';
+            } else if (cosineSimilarity > 0.5) {
+                similarityText.innerHTML = '<span class="text-warning">Средняя схожесть</span>';
+            } else {
+                similarityText.innerHTML = '<span class="text-danger">Низкая схожесть</span>';
+            }
+            
+            // Show angular difference in radians
+            const angularDiff =  parseFloat(results.angular_similarity);
+            document.getElementById('angular-badge').textContent = angularDiff.toFixed(6);
+            
+            // Set angular difference text
+            const angleText = document.getElementById('angle-text');
+            if (angularDiff < 0.5) {
+                angleText.innerHTML = '<span class="text-success">Малое расхождение</span>';
+            } else if (angularDiff < 1.0) {
+                angleText.innerHTML = '<span class="text-warning">Умеренное расхождение</span>';
+            } else {
+                angleText.innerHTML = '<span class="text-danger">Большое расхождение</span>';
+            }
+
+            if (results.developer_value) {
+                document.getElementById('developer-value').textContent = results.developer_value;
+                document.getElementById('developer-value-container').style.display = 'block';
+            } else {
+                document.getElementById('developer-value-container').style.display = 'none';
+            }
+
+            resultsContainer.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

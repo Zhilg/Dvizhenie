@@ -1,0 +1,86 @@
+/* Основные стили */
+.container {
+    max-width: 1200px;
+}
+
+h1, h2, h3, h4 {
+    color: #2c3e50;
+}
+
+.bg-light {
+    background-color: #f8f9fa !important;
+}
+
+/* Блоки с функционалом */
+.function-block {
+    border-left: 4px solid #3498db;
+    padding-left: 15px;
+    margin-bottom: 30px;
+}
+
+/* Кнопки */
+.btn-primary {
+    background-color: #3498db;
+    border-color: #3498db;
+}
+
+.btn-outline-secondary {
+    border-color: #ced4da;
+}
+
+/* Формы */
+.form-control, .form-select {
+    border-radius: 0.25rem;
+    border: 1px solid #ced4da;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
+}
+
+/* Результаты */
+#resultsContainer {
+    background-color: white;
+    border-radius: 0.5rem;
+    padding: 20px;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.alert {
+    border-radius: 0.5rem;
+}
+
+/* Список результатов */
+.list-group-item {
+    border-radius: 0.5rem !important;
+    margin-bottom: 10px;
+    transition: all 0.3s ease;
+}
+
+.list-group-item:hover {
+    transform: translateX(5px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+}
+
+/* Иконки */
+.bi {
+    margin-right: 8px;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .btn {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    
+    .input-group {
+        flex-direction: column;
+    }
+    
+    .input-group > * {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+}

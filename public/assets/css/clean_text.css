@@ -1,0 +1,171 @@
+@import url(normalize.css);
+
+body {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0;
+    background-color: #f8f9fa;
+}
+
+.grid-container {
+    width: 100%;
+    padding: 100px;
+}
+
+.row {
+    margin: 10px;
+}
+
+.grid-button {
+    padding: 15px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 8px;
+    background-color: #007bff;
+    color: white;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60px;
+    transition: background-color 0.3s, transform 0.2s;
+}
+
+.grid-button:hover {
+    background-color: #0056b3;
+    transform: scale(1.01);
+    color: white;
+    text-decoration: none;
+}
+
+.grid-paragraph {
+    text-align: center;
+    font-size: 1.1rem;
+    margin-top: 15px;
+    color: #333;
+}
+
+textarea {
+    width: 500px;
+    height: 500px;
+}
+
+input[type="file"] {
+    display: none;
+}
+
+.custom-file-upload {
+    cursor: pointer;
+}
+
+.insertion {
+    background-color: #e6ffe6;
+    color: #008000;
+    text-decoration: none;
+}
+
+.deletion {
+    background-color: #ffe6e6;
+    color: #ff0000;
+    text-decoration: line-through;
+}
+
+#comparison {
+    border: 1px solid #ccc;
+    padding: 15px;
+    background: #fff;
+    min-height: 300px;
+    line-height: 1.6;
+    font-size: 24x;
+    white-space: pre-wrap;
+    /* Preserve whitespace */
+}
+
+.legend-item {
+    font-size: 1rem;
+    margin-bottom: 10px;
+}
+
+.inserted-text {
+    color: green;
+    background-color: #d4edda;
+}
+
+.deleted-text {
+    color: red;
+    background-color: #f8d7da;
+    text-decoration: line-through;
+}
+
+.inserted-space {
+    color: green;
+    font-size: 1.2rem;
+}
+
+.deleted-space {
+    color: red;
+    font-size: 1.2rem;
+    text-decoration: line-through;
+}
+
+.inserted-newline {
+    color: green;
+    font-size: 1.2rem;
+}
+
+.deleted-newline {
+    color: red;
+    font-size: 1.2rem;
+    text-decoration: line-through;
+}
+
+#comparison {
+    border: 1px solid #ccc;
+    padding: 15px;
+    background: #fff;
+    min-height: 600px;
+    line-height: 1.6;
+    font-size: 24x;
+    white-space: pre-wrap;
+    overflow-y: auto;
+}
+
+@media (max-width: 576px) {
+    .grid-button {
+        padding: 10px;
+        font-size: 0.9rem;
+        min-height: 50px;
+    }
+
+    .grid-paragraph {
+        font-size: 1rem;
+    }
+
+    .legend-item {
+        font-size: 0.9rem;
+    }
+
+    textarea {
+        height: 200px;
+        /* Меньшая высота для мобильных */
+        font-size: 0.9rem;
+    }
+}
+
+.diff-container {
+    font-family: monospace;
+    white-space: pre-wrap;
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    margin-top: 20px;
+    line-height: 1.5;
+}
+
+.diff-container br {
+    content: "";
+    display: block;
+    margin-bottom: 5px;
+}

@@ -1,0 +1,221 @@
+:root {
+  --color-delete: #ff6b6b;
+  --color-delete-light: #ffebee;
+  --color-insert: #51cf66;
+  --color-insert-light: #ebfbee;
+  --color-text: #2b2d42;
+  --color-bg: #f8f9fa;
+  --color-border: #e9ecef;
+  --color-hover: #f1f3f5;
+}
+
+/* Основные стили */
+body {
+  padding: 2rem;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background-color: #fff;
+  color: var(--color-text);
+  line-height: 1.6;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+#result {
+  white-space: pre-wrap;
+  font-family: 'Fira Code', 'Courier New', monospace;
+  min-height: 200px;
+  border: 1px solid var(--color-border);
+  padding: 1.5rem;
+  background-color: #fff;
+  border-radius: 8px;
+  line-height: 1.8;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  transition: all 0.3s ease;
+}
+
+#result:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* Стили для областей ввода */
+.text-area-container {
+  margin-bottom: 2rem;
+}
+
+.file-upload-wrapper {
+  position: relative;
+  margin-bottom: 2rem;
+  transition: all 0.3s ease;
+}
+
+.file-upload-label {
+  display: block;
+  padding: 1.5rem;
+  background: #fff;
+  border: 2px dashed var(--color-border);
+  border-radius: 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.file-upload-label:hover {
+  background: var(--color-hover);
+  border-color: var(--color-insert);
+}
+
+.file-upload-input {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+/* Стили для сравнения текста */
+.deletion {
+  background: var(--color-delete-light);
+  color: var(--color-delete);
+  text-decoration: line-through;
+  border-radius: 4px;
+  padding: 0 2px;
+  margin: 0 1px;
+  transition: all 0.2s ease;
+}
+
+.insertion {
+  background: var(--color-insert-light);
+  color: var(--color-insert);
+  text-decoration: none;
+  border-radius: 4px;
+  padding: 0 2px;
+  margin: 0 1px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.insertion::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 100%;
+  height: 2px;
+  background: var(--color-insert);
+  border-radius: 2px;
+}
+
+/* Специальные стили для пробелов и переносов */
+.deleted-space,
+.inserted-space {
+  position: relative;
+  padding: 0 4px;
+  border-radius: 2px;
+}
+
+.deleted-space::after,
+.inserted-space::after {
+  content: '·';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 14px;
+  font-weight: bold;
+  opacity: 0.8;
+}
+
+.deleted-space {
+  background-color: #ffd3d3;
+}
+
+.inserted-space {
+  background-color: #d3f9d8;
+}
+
+.deleted-newline,
+.inserted-newline {
+  display: inline-block;
+  padding: 0 4px;
+  margin: 0 2px;
+  font-size: 12px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.deleted-newline {
+  background-color: #ffd3d3;
+  color: #c92a2a;
+}
+
+.inserted-newline {
+  background-color: #d3f9d8;
+  color: #2b8a3e;
+}
+
+/* Легенда */
+.legend {
+  margin-top: 2rem;
+  padding: 1rem;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+/* Кнопки и интерактивные элементы */
+button {
+  background: #4dabf7;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+button:hover {
+  background: #339af0;
+  transform: translateY(-2px);
+}
+
+/* Анимации */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+#result, .file-upload-label, .legend {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  body {
+    padding: 1rem;
+  }
+  
+  #result {
+    padding: 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .file-upload-label {
+    padding: 1rem;
+  }
+}

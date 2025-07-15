@@ -1,0 +1,55 @@
+@import url(normalize.css);
+
+body {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #f8f9fa;
+}
+
+.grid-container {
+    max-width: 100%;
+    padding: 40px;
+}
+
+.grid-button {
+    padding: 15px;
+    font-size: 18px;
+    border: none;
+    border-radius: 8px;
+    background-color: #007bff;
+    color: white;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60px;
+    transition: background-color 0.3s, transform 0.2s;
+}
+
+.grid-button:hover {
+    background-color: #0056b3;
+    transform: scale(1.05);
+    color: white;
+    text-decoration: none;
+}
+
+.grid-paragraph {
+    text-align: center;
+    font-size: 16px;
+    margin-top: 15px;
+    color: #333;
+}
+
+@media (max-width: 576px) {
+    .grid-button {
+        padding: 10px;
+        font-size: 0.9rem;
+        min-height: 50px;
+    }
+
+    .grid-paragraph {
+        font-size: 1rem;
+    }
+}

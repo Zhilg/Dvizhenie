@@ -1,0 +1,68 @@
+services:
+  normalize-service:
+    image: text-normalizer
+    container_name: normalize-service
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./shared_data:/shared_data  # Общая папка для всех сервисов
+    networks:
+      - new_network
+
+  embedding-service:
+    image: embedding-service
+    container_name: embedding-service
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./shared_data:/embedding-service/shared_data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    networks:
+      - new_network
+
+  vbd-service:
+    image: vbd-service
+    container_name: vbd-service
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./shared_data:/vbd/shared_data
+    depends_on:
+      - normalize-service
+      - embedding-service
+      - qdrant-service
+    networks:
+      - new_network
+
+  qdrant-service:
+    image: qdrant/qdrant
+    container_name: qdrant-service
+    ports:
+      - "6333:6333"
+    networks:
+      - new_network
+
+  dvizhenie:
+    image: dvizhenie
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./shared_data:/app/shared_data
+    networks:
+      - new_network
+
+networks:
+  new_network:
+    driver: bridge
+
+volumes:
+  shared_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./shared_data  # Абсолютный путь на хосте
