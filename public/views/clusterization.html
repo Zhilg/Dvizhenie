@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Clustering Analyzer</title>
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #166088;
+            --accent-color: #4fc3f7;
+            --light-bg: #f8f9fa;
+            --dark-text: #2c3e50;
+            --light-text: #ecf0f1;
+            --success-color: #28a745;
+            --border-radius: 6px;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--light-bg);
+            color: var(--dark-text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: var(--shadow);
+            z-index: 10;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .logo-icon {
+            margin-right: 10px;
+            font-size: 1.8rem;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #3aa8d8;
+            transform: translateY(-2px);
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            border: 1px solid white;
+            color: white;
+        }
+
+        .btn-outline:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .timer {
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 8px 15px;
+            border-radius: var(--border-radius);
+            font-family: 'Courier New', monospace;
+            font-size: 1.1rem;
+        }
+
+        .progress-container {
+            width: 200px;
+            height: 10px;
+            background-color: rgba(255, 255, 255, 0.3);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background-color: var(--accent-color);
+            transition: width 0.3s ease;
+        }
+
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 30%;
+            background-color: white;
+            border-right: 1px solid #ddd;
+            overflow-y: auto;
+            padding: 15px;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
+        }
+
+        .tree-view {
+            list-style: none;
+        }
+
+        .tree-item {
+            padding: 8px 10px;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            margin-bottom: 2px;
+            transition: all 0.2s ease;
+        }
+
+        .tree-item:hover {
+            background-color: #f0f0f0;
+        }
+
+        .tree-item.active {
+            background-color: #e3f2fd;
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .tree-item .icon {
+            margin-right: 8px;
+            color: #78909c;
+        }
+
+        .tree-item.active .icon {
+            color: var(--accent-color);
+        }
+
+        .tree-item .count {
+            margin-left: auto;
+            background-color: #e0e0e0;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+        }
+
+        .tree-item.active .count {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        .content-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .cluster-info {
+            padding: 15px;
+            background-color: white;
+            border-bottom: 1px solid #ddd;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+
+        .cluster-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .cluster-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .cluster-stats {
+            display: flex;
+            gap: 15px;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .stat-value {
+            font-weight: bold;
+            font-size: 1.1rem;
+            color: var(--secondary-color);
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: #78909c;
+        }
+
+        .similarity-chart {
+            height: 60px;
+            background-color: #f5f5f5;
+            border-radius: var(--border-radius);
+            margin-top: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chart-bar {
+            position: absolute;
+            bottom: 0;
+            height: 100%;
+            background-color: var(--accent-color);
+            opacity: 0.7;
+            transition: width 0.5s ease;
+        }
+
+        .files-table {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background-color: #f5f5f5;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--dark-text);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        th:hover {
+            background-color: #e0e0e0;
+        }
+
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        tr:hover {
+            background-color: #f9f9f9;
+        }
+
+        .similarity-high {
+            color: var(--success-color);
+            font-weight: 600;
+        }
+
+        .similarity-medium {
+            color: #ff9800;
+        }
+
+        .similarity-low {
+            color: #f44336;
+        }
+
+        .file-preview {
+            padding: 15px;
+            border-top: 1px solid #ddd;
+            background-color: white;
+            max-height: 30%;
+            overflow-y: auto;
+        }
+
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .preview-title {
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .preview-content {
+            white-space: pre-wrap;
+            font-family: 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: #455a64;
+        }
+
+        .sort-indicator {
+            margin-left: 5px;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .status-message {
+            padding: 10px 15px;
+            border-radius: var(--border-radius);
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-success {
+            background-color: #e8f5e9;
+            color: var(--success-color);
+        }
+
+        .status-error {
+            background-color: #ffebee;
+            color: #f44336;
+        }
+
+        .status-info {
+            background-color: #e3f2fd;
+            color: var(--primary-color);
+        }
+         th.sortable {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+        
+        th.sortable:hover {
+            background-color: #e0e0e0;
+        }
+        
+        .sort-indicator {
+            margin-left: 5px;
+            display: inline-block;
+            width: 16px;
+            text-align: center;
+        }
+        
+        .sort-asc::after {
+            content: "↑";
+        }
+        
+        .sort-desc::after {
+            content: "↓";
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <span class="logo-icon">📊</span>
+            <span>Text Clustering Analyzer</span>
+        </div>
+        <div class="controls">
+            <div class="progress-container">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div class="timer" id="timer">00:00:00</div>
+            <button class="btn btn-outline" id="exportBtn">
+                <span>⚙️</span> Экспорт
+            </button>
+            <button class="btn btn-primary" id="selectFolderBtn">
+                <span>📁</span> Выберите папку
+            </button>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="sidebar">
+            <div id="statusMessage" class="status-message status-info" style="display: none;">
+                <span class="loading"></span>
+                <span id="statusText">Загрузка данных...</span>
+            </div>
+            <ul class="tree-view" id="clusterTree"></ul>
+        </div>
+
+        <div class="content-area">
+            <div class="cluster-info" id="clusterInfo">
+                <div class="cluster-header">
+                    <div class="cluster-title">Выберите кластер для просмотра</div>
+                    <div class="cluster-stats">
+                        <div class="stat-item">
+                            <div class="stat-value">0</div>
+                            <div class="stat-label">файлов</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">0.00</div>
+                            <div class="stat-label">средняя близость</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">0</div>
+                            <div class="stat-label">подкластера</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="similarity-chart" id="similarityChart"></div>
+            </div>
+
+            <div class="files-table">
+                <table id="filesTable">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-sort="name">Имя файла</th>
+                        <th class="sortable" data-sort="similarity">Близость к центроиду</th>
+                        <th class="sortable" data-sort="size">Размер</th>
+                        <th class="sortable" data-sort="date">Дата</th>
+                    </tr>
+                </thead>
+                <tbody id="filesTableBody"></tbody>
+            </table>
+                    <tbody id="filesTableBody">
+                        <tr>
+                            <td colspan="4" style="text-align: center; padding: 30px;">Выберите кластер для просмотра файлов</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="file-preview" id="filePreview">
+                <div class="preview-header">
+                    <div class="preview-title">Предпросмотр файла</div>
+                </div>
+                <div class="preview-content" id="previewContent">Выберите файл для просмотра содержимого</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Глобальные переменные состояния
+        let currentFolder = null;
+        let clustersData = null;
+        let currentClusterId = null;
+        let timerInterval = null;
+        let startTime = null;
+        let sortColumn = 'similarity';
+        let sortDirection = 'desc';
+
+        // DOM элементы
+        const selectFolderBtn = document.getElementById('selectFolderBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const timerElement = document.getElementById('timer');
+        const progressBar = document.getElementById('progressBar');
+        const clusterTree = document.getElementById('clusterTree');
+        const clusterInfo = document.getElementById('clusterInfo');
+        const filesTableBody = document.getElementById('filesTableBody');
+        const previewContent = document.getElementById('previewContent');
+        const statusMessage = document.getElementById('statusMessage');
+        const statusText = document.getElementById('statusText');
+        const similarityChart = document.getElementById('similarityChart');
+
+        // Обработчики событий
+        selectFolderBtn.addEventListener('click', selectFolder);
+        exportBtn.addEventListener('click', exportResults);
+        
+        // Назначаем обработчики сортировки для заголовков таблицы
+        document.querySelectorAll('#filesTable th[data-sort]').forEach(header => {
+            header.addEventListener('click', () => {
+                const column = header.getAttribute('data-sort');
+                if (sortColumn === column) {
+                    sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                } else {
+                    sortColumn = column;
+                    sortDirection = 'desc';
+                }
+                
+                // Обновляем индикаторы сортировки
+                document.querySelectorAll('.sort-indicator').forEach(ind => {
+                    ind.textContent = '';
+                });
+                header.querySelector('.sort-indicator').textContent = sortDirection === 'asc' ? '↑' : '↓';
+                
+                if (currentClusterId) {
+                    renderFilesTable(currentClusterId);
+                }
+            });
+        });
+
+        // Функция выбора папки
+        async function selectFolder() {
+            // В реальном приложении здесь будет вызов API для выбора папки
+            // Для демонстрации эмулируем выбор папки
+            
+            showStatus('Идёт обработка файлов...', 'info');
+            selectFolderBtn.disabled = true;
+            selectFolderBtn.innerHTML = '<span class="loading"></span> Обработка...';
+            
+            // Сброс предыдущих данных
+            clusterTree.innerHTML = '';
+            filesTableBody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 30px;">Идёт обработка файлов...</td></tr>';
+            previewContent.textContent = 'Идёт обработка файлов...';
+            
+            // Запуск таймера
+            startTimer();
+            
+            // Эмуляция обработки
+            progressBar.style.width = '0%';
+            
+            try {
+                // Эмулируем задержку API
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Получаем данные с "бэкенда" (в реальном приложении это будет fetch или axios запрос)
+                const response = await mockFetchClusters();
+                
+                if (response.success) {
+                    clustersData = response.data;
+                    currentFolder = response.folder;
+                    
+                    // Обновляем интерфейс
+                    renderClusterTree(clustersData);
+                    showStatus('Кластеризация завершена', 'success');
+                    
+                    // Выбираем первый кластер автоматически
+                    if (clustersData.children && clustersData.children.length > 0) {
+                        selectCluster(clustersData.children[0].id);
+                    }
+                } else {
+                    showStatus('Ошибка при кластеризации: ' + response.error, 'error');
+                }
+            } catch (error) {
+                showStatus('Ошибка: ' + error.message, 'error');
+            } finally {
+                selectFolderBtn.disabled = false;
+                selectFolderBtn.innerHTML = '<span>📁</span> Выберите папку';
+                stopTimer();
+                progressBar.style.width = '100%';
+            }
+        }
+
+        // Функция отображения кластеров в дереве
+        function renderClusterTree(data, parentElement = clusterTree, level = 0) {
+            parentElement.innerHTML = '';
+            
+            if (data.children && data.children.length > 0) {
+                data.children.forEach(cluster => {
+                    const li = document.createElement('li');
+                    li.className = 'tree-item';
+                    li.dataset.id = cluster.id;
+                    li.innerHTML = `
+                        <span class="icon">${level === 0 ? '📂' : '📁'}</span>
+                        <span>${cluster.name}</span>
+                        <span class="count">${cluster.fileCount}</span>
+                    `;
+                    
+                    li.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        selectCluster(cluster.id);
+                    });
+                    
+                    parentElement.appendChild(li);
+                    
+                    // Рекурсивно отображаем подкластеры
+                    if (cluster.children && cluster.children.length > 0) {
+                        const ul = document.createElement('ul');
+                        li.appendChild(ul);
+                        renderClusterTree(cluster, ul, level + 1);
+                    }
+                });
+            }
+        }
+
+        // Функция выбора кластера
+        function selectCluster(clusterId) {
+            currentClusterId = clusterId;
+            
+            // Обновляем активный элемент в дереве
+            document.querySelectorAll('.tree-item').forEach(item => {
+                item.classList.remove('active');
+                if (item.dataset.id === clusterId) {
+                    item.classList.add('active');
+                }
+            });
+            
+            // Находим данные кластера
+            const cluster = findClusterById(clustersData, clusterId);
+            if (!cluster) return;
+            
+            // Обновляем информацию о кластере
+            document.querySelector('.cluster-title').textContent = cluster.name;
+            document.querySelectorAll('.stat-item .stat-value')[0].textContent = cluster.fileCount;
+            document.querySelectorAll('.stat-item .stat-value')[1].textContent = cluster.avgSimilarity.toFixed(2);
+            document.querySelectorAll('.stat-item .stat-value')[2].textContent = cluster.children ? cluster.children.length : 0;
+            
+            // Обновляем график распределения близости
+            updateSimilarityChart(cluster.similarityDistribution);
+            
+            // Обновляем таблицу файлов
+            renderFilesTable(clusterId);
+        }
+
+        // Функция обновления графика распределения близости
+        function updateSimilarityChart(distribution) {
+            similarityChart.innerHTML = '';
+            
+            if (distribution && distribution.length > 0) {
+                distribution.forEach((value, index) => {
+                    const bar = document.createElement('div');
+                    bar.className = 'chart-bar';
+                    bar.style.width = `${value * 100}%`;
+                    bar.style.left = `${index * (100 / distribution.length)}%`;
+                    similarityChart.appendChild(bar);
+                });
+            }
+        }
+
+        // Функция отображения таблицы файлов
+        function renderFilesTable(clusterId) {
+            const cluster = findClusterById(clustersData, clusterId);
+            if (!cluster || !cluster.files) {
+                filesTableBody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 30px;">Нет файлов для отображения</td></tr>';
+                return;
+            }
+            
+            // Сортируем файлы
+            const sortedFiles = [...cluster.files].sort((a, b) => {
+                if (sortColumn === 'name') {
+                    return sortDirection === 'asc' 
+                        ? a.name.localeCompare(b.name) 
+                        : b.name.localeCompare(a.name);
+                } else if (sortColumn === 'similarity') {
+                    return sortDirection === 'asc' 
+                        ? a.similarity - b.similarity 
+                        : b.similarity - a.similarity;
+                } else if (sortColumn === 'size') {
+                    return sortDirection === 'asc' 
+                        ? a.size - b.size 
+                        : b.size - a.size;
+                } else if (sortColumn === 'date') {
+                    return sortDirection === 'asc' 
+                        ? new Date(a.date) - new Date(b.date) 
+                        : new Date(b.date) - new Date(a.date);
+                }
+                return 0;
+            });
+            
+            // Очищаем таблицу
+            filesTableBody.innerHTML = '';
+            
+            // Заполняем таблицу
+            sortedFiles.forEach(file => {
+                const row = document.createElement('tr');
+                row.dataset.fileId = file.id;
+                
+                // Определяем класс для близости
+                let similarityClass = '';
+                if (file.similarity > 0.8) similarityClass = 'similarity-high';
+                else if (file.similarity > 0.5) similarityClass = 'similarity-medium';
+                else similarityClass = 'similarity-low';
+                
+                row.innerHTML = `
+                    <td>${file.name}</td>
+                    <td class="${similarityClass}">${file.similarity.toFixed(3)}</td>
+                    <td>${formatFileSize(file.size)}</td>
+                    <td>${new Date(file.date).toLocaleDateString()}</td>
+                `;
+                
+                row.addEventListener('click', () => {
+                    // Удаляем выделение с других строк
+                    document.querySelectorAll('#filesTableBody tr').forEach(r => {
+                        r.style.backgroundColor = '';
+                    });
+                    
+                    // Выделяем текущую строку
+                    row.style.backgroundColor = '#e3f2fd';
+                    
+                    // Показываем превью файла
+                    showFilePreview(file.id);
+                });
+                
+                filesTableBody.appendChild(row);
+            });
+        }
+
+        // Функция показа превью файла
+        function showFilePreview(fileId) {
+            // В реальном приложении здесь будет запрос к API для получения содержимого файла
+            // Для демонстрации используем моковые данные
+            
+            const cluster = findClusterById(clustersData, currentClusterId);
+            if (!cluster || !cluster.files) return;
+            
+            const file = cluster.files.find(f => f.id === fileId);
+            if (!file) return;
+            
+            document.querySelector('.preview-title').textContent = file.name;
+            
+            // Эмулируем загрузку содержимого файла
+            previewContent.innerHTML = '<em>Загрузка содержимого файла...</em>';
+            
+            setTimeout(() => {
+                // Моковое содержимое файла
+                previewContent.textContent = `Это содержимое файла ${file.name}\n\n` +
+                    `Кластер: ${cluster.name}\n` +
+                    `Близость к центроиду: ${file.similarity.toFixed(3)}\n` +
+                    `Размер: ${formatFileSize(file.size)}\n` +
+                    `Дата создания: ${new Date(file.date).toLocaleString()}\n\n` +
+                    'Здесь будет отображаться полное содержимое текстового файла. ' +
+                    'В реальном приложении этот текст будет загружаться с сервера по запросу.';
+            }, 300);
+        }
+
+        // Функция экспорта результатов
+        function exportResults() {
+            if (!clustersData) {
+                showStatus('Нет данных для экспорта', 'error');
+                return;
+            }
+            
+            showStatus('Подготовка данных для экспорта...', 'info');
+            
+            // В реальном приложении здесь будет вызов API для экспорта
+            setTimeout(() => {
+                showStatus('Экспорт завершен успешно', 'success');
+            }, 1500);
+        }
+
+        // Функция отображения статуса
+        function showStatus(message, type) {
+            statusMessage.style.display = 'flex';
+            statusMessage.className = `status-message status-${type}`;
+            statusText.textContent = message;
+            
+            if (type !== 'info') {
+                setTimeout(() => {
+                    statusMessage.style.display = 'none';
+                }, 3000);
+            }
+        }
+
+        // Функция поиска кластера по ID
+        function findClusterById(data, id) {
+            if (data.id === id) return data;
+            
+            if (data.children) {
+                for (const child of data.children) {
+                    const found = findClusterById(child, id);
+                    if (found) return found;
+                }
+            }
+            
+            return null;
+        }
+
+        // Функция форматирования размера файла
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Таймер
+        function startTimer() {
+            startTime = new Date();
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+        }
+
+        function updateTimer() {
+            const now = new Date();
+            const diff = new Date(now - startTime);
+            
+            const hours = diff.getUTCHours().toString().padStart(2, '0');
+            const minutes = diff.getUTCMinutes().toString().padStart(2, '0');
+            const seconds = diff.getUTCSeconds().toString().padStart(2, '0');
+            
+            timerElement.textContent = `${hours}:${minutes}:${seconds}`;
+        }
+
+        // Моковая функция API для получения данных кластеризации
+        async function mockFetchClusters() {
+            // Эмулируем задержку API
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Моковые данные кластеризации
+            return {
+                success: true,
+                folder: 'C:/documents/text_corpus',
+                data: {
+                    id: 'root',
+                    name: 'Все кластеры',
+                    fileCount: 32456,
+                    avgSimilarity: 0.82,
+                    children: [
+                        {
+                            id: 'cluster1',
+                            name: 'Технологии',
+                            fileCount: 12480,
+                            avgSimilarity: 0.87,
+                            similarityDistribution: [0.1, 0.3, 0.5, 0.7, 0.9],
+                            files: Array.from({length: 50}, (_, i) => ({
+                                id: `file_tech_${i}`,
+                                name: `tech_document_${i+1}.txt`,
+                                similarity: Math.random() * 0.5 + 0.5, // 0.5 - 1.0
+                                size: Math.floor(Math.random() * 5000000) + 100000, // 100KB - 5MB
+                                date: new Date(Date.now() - Math.floor(Math.random() * 30 * 24 * 60 * 60 * 1000)).toISOString()
+                            })),
+                            children: [
+                                {
+                                    id: 'cluster1_1',
+                                    name: 'Искусственный интеллект',
+                                    fileCount: 5243,
+                                    avgSimilarity: 0.91,
+                                    similarityDistribution: [0.05, 0.2, 0.4, 0.6, 0.85],
+                                    files: Array.from({length: 30}, (_, i) => ({
+                                        id: `file_ai_${i}`,
+                                        name: `ai_paper_${i+1}.txt`,
+                                        similarity: Math.random() * 0.3 + 0.7, // 0.7 - 1.0
+                                        size: Math.floor(Math.random() * 3000000) + 500000, // 500KB - 3MB
+                                        date: new Date(Date.now() - Math.floor(Math.random() * 15 * 24 * 60 * 60 * 1000)).toISOString()
+                                    }))
+                                },
+                                {
+                                    id: 'cluster1_2',
+                                    name: 'Кибербезопасность',
+                                    fileCount: 4231,
+                                    avgSimilarity: 0.83,
+                                    similarityDistribution: [0.15, 0.3, 0.45, 0.65, 0.8],
+                                    files: Array.from({length: 25}, (_, i) => ({
+                                        id: `file_cyber_${i}`,
+                                        name: `cyber_security_${i+1}.txt`,
+                                        similarity: Math.random() * 0.4 + 0.5, // 0.5 - 0.9
+                                        size: Math.floor(Math.random() * 4000000) + 200000, // 200KB - 4MB
+                                        date: new Date(Date.now() - Math.floor(Math.random() * 20 * 24 * 60 * 60 * 1000)).toISOString()
+                                    }))
+                                }
+                            ]
+                        },
+                        {
+                            id: 'cluster2',
+                            name: 'Наука',
+                            fileCount: 8765,
+                            avgSimilarity: 0.79,
+                            similarityDistribution: [0.2, 0.35, 0.5, 0.65, 0.75],
+                            files: Array.from({length: 45}, (_, i) => ({
+                                id: `file_science_${i}`,
+                                name: `science_article_${i+1}.txt`,
+                                similarity: Math.random() * 0.6 + 0.3, // 0.3 - 0.9
+                                size: Math.floor(Math.random() * 6000000) + 50000, // 50KB - 6MB
+                                date: new Date(Date.now() - Math.floor(Math.random() * 60 * 24 * 60 * 60 * 1000)).toISOString()
+                            })),
+                            children: [
+                                {
+                                    id: 'cluster2_1',
+                                    name: 'Физика',
+                                    fileCount: 3210,
+                                    avgSimilarity: 0.85,
+                                    similarityDistribution: [0.1, 0.25, 0.4, 0.6, 0.8],
+                                    files: Array.from({length: 20}, (_, i) => ({
+                                        id: `file_physics_${i}`,
+                                        name: `physics_research_${i+1}.txt`,
+                                        similarity: Math.random() * 0.4 + 0.5, // 0.5 - 0.9
+                                        size: Math.floor(Math.random() * 5000000) + 100000, // 100KB - 5MB
+                                        date: new Date(Date.now() - Math.floor(Math.random() * 45 * 24 * 60 * 60 * 1000)).toISOString()
+                                    }))
+                                }
+                            ]
+                        }
+                    ]
+                }
+            };
+        }
+        // Обновлённый код с сортировкой
+        
+        // Глобальные переменные для сортировки
+        let currentSort = {
+            column: 'similarity',
+            direction: 'desc'
+        };
+
+        // Функция для обновления таблицы с учётом сортировки
+        function renderFilesTable(clusterId) {
+            const cluster = findClusterById(clustersData, clusterId);
+            if (!cluster || !cluster.files) {
+                filesTableBody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 30px;">Нет файлов для отображения</td></tr>';
+                return;
+            }
+            
+            // Сортируем файлы
+            const sortedFiles = [...cluster.files].sort((a, b) => {
+                let result = 0;
+                
+                switch(currentSort.column) {
+                    case 'name':
+                        result = a.name.localeCompare(b.name);
+                        break;
+                    case 'similarity':
+                        result = a.similarity - b.similarity;
+                        break;
+                    case 'size':
+                        result = a.size - b.size;
+                        break;
+                    case 'date':
+                        result = new Date(a.date) - new Date(b.date);
+                        break;
+                }
+                
+                return currentSort.direction === 'asc' ? result : -result;
+            });
+            
+            // Очищаем таблицу
+            filesTableBody.innerHTML = '';
+            
+            // Заполняем таблицу
+            sortedFiles.forEach(file => {
+                const row = document.createElement('tr');
+                row.dataset.fileId = file.id;
+                
+                // Определяем класс для близости
+                let similarityClass = '';
+                if (file.similarity > 0.8) similarityClass = 'similarity-high';
+                else if (file.similarity > 0.5) similarityClass = 'similarity-medium';
+                else similarityClass = 'similarity-low';
+                
+                row.innerHTML = `
+                    <td>${file.name}</td>
+                    <td class="${similarityClass}">${file.similarity.toFixed(3)}</td>
+                    <td>${formatFileSize(file.size)}</td>
+                    <td>${new Date(file.date).toLocaleDateString()}</td>
+                `;
+                
+                row.addEventListener('click', () => {
+                    document.querySelectorAll('#filesTableBody tr').forEach(r => {
+                        r.style.backgroundColor = '';
+                    });
+                    row.style.backgroundColor = '#e3f2fd';
+                    showFilePreview(file.id);
+                });
+                
+                filesTableBody.appendChild(row);
+            });
+            
+            // Обновляем индикаторы сортировки
+            updateSortIndicators();
+        }
+
+        // Функция обновления индикаторов сортировки
+        function updateSortIndicators() {
+            document.querySelectorAll('#filesTable th').forEach(header => {
+                header.classList.remove('sort-asc', 'sort-desc');
+                if (header.getAttribute('data-sort') === currentSort.column) {
+                    header.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+                }
+            });
+        }
+
+        // Обработчики кликов для сортировки
+        document.querySelectorAll('#filesTable th.sortable').forEach(header => {
+            header.addEventListener('click', () => {
+                const column = header.getAttribute('data-sort');
+                
+                if (currentSort.column === column) {
+                    // Переключаем направление, если кликнули на ту же колонку
+                    currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                } else {
+                    // Меняем колонку и устанавливаем направление по умолчанию
+                    currentSort.column = column;
+                    currentSort.direction = 'desc';
+                }
+                
+                if (currentClusterId) {
+                    renderFilesTable(currentClusterId);
+                }
+            });
+        });
+
+        // Инициализация при загрузке
+        document.addEventListener('DOMContentLoaded', () => {
+            updateSortIndicators();
+        });
+    </script>
+</body>
+</html>

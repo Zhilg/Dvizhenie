@@ -73,6 +73,9 @@ app.get('/semantic', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'views', 'semantic.html'));
 });
 
+app.get('/clusterization', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'views', 'clusterization.html'))
+});
 
 // API Proxy Routes
 
