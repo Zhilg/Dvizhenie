@@ -6,6 +6,9 @@ const morgan = require('morgan');
 const multer = require('multer');
 const FormData = require('form-data');
 const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
+const cosineSimilarity = require('cosine-similarity');
+const router = express.Router();
 
 const app = express();
 const PORT = 3000;
@@ -107,145 +110,169 @@ app.post('/api/normalize', async (req, res) => {
   }
 });
 
-// 2. Векторизация (аналогично normalize)
-app.post('/api/embedding', validateEmbeddingRequest, async (req, res) => {
+// Здесь отправляются 2 текста на векторизацию и считается их близость
+app.post('/api/similarity', express.json(), async (req, res) => {
   try {
-    console.log('Embedding request:', { 
-      text1: req.body.text1.substring(0, 50) + '...',
-      text2: req.body.text2.substring(0, 50) + '...'
-    });
+    const { text1, text2, modelId = 'default-model' } = req.body;
     
-    const response = await axios.post(`${EMBEDDING_SERVICE_URL}/similarity`, {
-      text1: req.body.text1,
-      text2: req.body.text2
-    }, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      timeout: 10000
+    if (!text1 || !text2) {
+      return res.status(400).json({ error: 'Both texts are required' });
+    }
+
+    console.log('Similarity request:', { 
+      modelId,
+      length1: text1.length,
+      length2: text2.length
     });
-    
-    console.log('Embedding successful:', { 
-      similarity: response.data.similarity 
+
+    // Параллельно получаем эмбеддинги
+    const [embedding1, embedding2] = await Promise.all([
+      getEmbedding(text1, modelId),
+      getEmbedding(text2, modelId)
+    ]);
+
+    // Рассчитываем метрики
+    const cosSim = cosineSimilarity(embedding1, embedding2);
+    const angularDist = Math.acos(Math.min(Math.max(cosSim, -1), 1));
+
+    res.json({
+      cosine_similarity: cosSim,
+      angular_similarity_radians: angularDist,
+      model_used: modelId,
+      embeddings: [embedding1, embedding2] // Опционально, если нужны клиенту
     });
-    res.json(response.data);
+
   } catch (error) {
-    handleProxyError(error, 'Embedding', res);
+    handleProxyError(error, 'Similarity', res);
   }
 });
 
-app.post('/api/semantic/semantic_search', async (req, res) => {
-    try {
-        const response = await axios.post(`${SEMANTIC_SERVICE_URL}/semantic_search`, {
-            querry: req.body.querry,
-            collection_name: req.body.collection_name,
-            top_k: req.body.top_k || 5
-        });
-        
-        res.json(response.data);
-    } catch (error) {
-        console.error('Search error:', error);
-        res.status(500).json({
-            error: 'Search failed',
-            message: error.message
-        });
-    }
-});
-
-app.post('/api/semantic/collections', async (req, res) => {
-    try {
-        const response = await axios.post(`${SEMANTIC_SERVICE_URL}/list_collections_names`);
-        res.json(response.data);
-    } catch (error) {
-        console.error('Collections list error:', error);
-        res.status(500).json({
-            error: 'Failed to get collections',
-            message: error.message
-        });
-    }
-});
-
-app.post('/api/semantic/delete_collection', async (req, res) => {
-    try {
-        const response = await axios.post(`${SEMANTIC_SERVICE_URL}/delete_collection`, {
-            name: req.body.name
-        });
-        
-        res.json(response.data);
-    } catch (error) {
-        console.error('Delete collection error:', error);
-        res.status(500).json({
-            error: 'Failed to delete collection',
-            message: error.message
-        });
-    }
-});
-
-app.post('/api/semantic/delete_all_collections', async (req, res) => {
-    try {
-        const response = await axios.post(`${SEMANTIC_SERVICE_URL}/delete_all_collections`);
-        res.json(response.data);
-    } catch (error) {
-        console.error('Delete all collections error:', error);
-        res.status(500).json({
-            error: 'Failed to delete all collections',
-            message: error.message
-        });
-    }
-});
-// Middleware для обработки multipart/form-data
-app.post('/api/process-folder', upload.array('files'), async (req, res) => {
-    const PROCESSING_DIR = '/app/shared_data'; // путь в dvizhenie
+// Отправка текста на эмбеддинг
+async function getEmbedding(text, modelId) {
+  const response = await axios.post(`${EMBEDDING_SERVICE_URL}/embedding`, text, {
+    headers: {
+      'Content-Type': 'text/plain',
+      'x-model-id': modelId
+    },
+    timeout: 10000
+  });
+  return response.data.embedding;
+}
+// Загрузка документов
+router.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
+  try {
+    const modelId = req.headers['x-model-id'] || 'default-model';
+    const ttlHours = req.headers['x-ttl-hours'] || 0;
     
-    try {
-        // 1. Создаем уникальную папку для обработки
-        const timeStamp =  Date.now().toString();
-        const processingPath = path.join(PROCESSING_DIR, timeStamp);
-        const sendPath = "/vbd/shared_data/"+timeStamp // путь в vbd
-        fs.mkdirSync(processingPath, { recursive: true });
+    // Создаем уникальную папку для обработки
+    const processingId = uuidv4();
+    const processingPath = path.join(SHARED_DATA_PATH, processingId);
+    fs.mkdirSync(processingPath, { recursive: true });
 
-        // 2. Переносим все файлы в папку обработки
-        req.files.forEach(file => {
-            const targetPath = path.join(processingPath, file.originalname);
-            fs.renameSync(file.path, targetPath);
-        });
+    // Переносим файлы
+    req.files.forEach(file => {
+      const targetPath = path.join(processingPath, file.originalname);
+      fs.renameSync(file.path, targetPath);
+    });
 
+    // Отправляем запрос в сервис семантики
+    const response = await axios.post(`${SEMANTIC_SERVICE_URL}/semantic/upload`, {}, {
+      headers: {
+        'x-corpus-path': processingId,
+        'x-model-id': modelId,
+        'x-ttl-hours': ttlHours
+      }
+    });
 
-        console.log(sendPath);
-        const apiResponse = await axios.post('http://vbd-service:8080/sematic_upload', {
-            folder_path: sendPath, 
-            collection_name: req.body.collection_name,
-            processes: 2
-        }, {
-            headers: { 'Content-Type': 'application/json' }
-        });
+    res.status(202).json(response.data);
 
-        // 4. Запланировать очистку через 1 минуту
-        // setTimeout(() => {
-        //     fs.rmSync(processingPath, { recursive: true, force: true });
-        // }, 60000);
-
-        res.json({
-            status: 'success',
-            processed_files: req.files.length,
-            collection: req.body.collection_name,
-            processing_path: processingPath
-        });
-
-    } catch (error) {
-        console.error('FINAL ERROR:', {
-            message: error.message,
-            response: error.response?.data,
-            stack: error.stack
-        });
-        
-        res.status(500).json({
-            status: 'error',
-            error: 'PROCESSING_FAILED',
-            details: error.response?.data || error.message
-        });
-    }
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({
+      error: 'Upload failed',
+      message: error.message
+    });
+  }
 });
+
+// Проверка статуса задачи
+router.get('/api/jobs/:jobId', async (req, res) => {
+  try {
+    const response = await axios.get(`${SEMANTIC_SERVICE_URL}/api/jobs/${req.params.jobId}`);
+    res.json(response.data);
+  } catch (error) {
+    console.error('Job status error:', error);
+    res.status(500).json({
+      error: 'Failed to get job status',
+      message: error.message
+    });
+  }
+});
+
+// Получение результатов
+router.get('/api/results/:resultUrl', async (req, res) => {
+  try {
+    const response = await axios.get(`${SEMANTIC_SERVICE_URL}${req.params.resultUrl}`);
+    res.json(response.data);
+  } catch (error) {
+    console.error('Results error:', error);
+    res.status(500).json({
+      error: 'Failed to get results',
+      message: error.message
+    });
+  }
+});
+
+// Поиск по корпусу
+router.post('/api/semantic/search', express.text(), async (req, res) => {
+  try {
+    const response = await axios.post(`${SEMANTIC_SERVICE_URL}/semantic/search`, req.body, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'x-corpus-id': req.headers['x-corpus-id'],
+        'x-result-amount': req.headers['x-result-amount'] || 5,
+        'x-model-id': req.headers['x-model-id']
+      }
+    });
+    
+    res.json(response.data);
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({
+      error: 'Search failed',
+      message: error.message
+    });
+  }
+});
+
+// Управление корпусами
+router.get('/api/semantic/corpora', async (req, res) => {
+  try {
+    const response = await axios.get(`${SEMANTIC_SERVICE_URL}/semantic/corpora`);
+    res.json(response.data);
+  } catch (error) {
+    console.error('Corpora list error:', error);
+    res.status(500).json({
+      error: 'Failed to get corpora list',
+      message: error.message
+    });
+  }
+});
+
+router.delete('/api/semantic/corpora/:corpusId', async (req, res) => {
+  try {
+    const response = await axios.delete(`${SEMANTIC_SERVICE_URL}/semantic/corpora/${req.params.corpusId}`);
+    res.json(response.data);
+  } catch (error) {
+    console.error('Delete corpus error:', error);
+    res.status(500).json({
+      error: 'Failed to delete corpus',
+      message: error.message
+    });
+  }
+});
+
+module.exports = router;
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
@@ -266,6 +293,32 @@ app.use((err, req, res, next) => {
     error: 'Internal server error',
     message: err.message
   });
+});
+
+// const AVAILABLE_MODELS = [
+//   {
+//     model_id: '8a7d3f02-3a7c-4b5d-b8e9-0c1f2a6d4e8f',
+//     model_name: 'bert-multilingual',
+//     dimension: 768
+//   },
+//   {
+//     model_id: '5b2c1e8d-9f3a-4c7d-b6e1-0f8a3d2e5c7b',
+//     model_name: 'rubert-tiny',
+//     dimension: 312
+//   }
+// ];
+
+// Получение списка моделей
+app.get('/api/models', async (req, res) => {
+  try {
+    // В реальном приложении:
+    const models = await axios.get(`${EMBEDDING_SERVICE_URL}/models`);
+    res.json(models.data);
+    
+    // res.json(AVAILABLE_MODELS);
+  } catch (error) {
+    handleProxyError(error, 'Models list', res);
+  }
 });
 
 // Start server

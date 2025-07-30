@@ -5,6 +5,8 @@ let originalText = '';
 let modifiedText = '';
 let filePath = '';
 let modifiedPath = '';
+let availableModels = [];
+let currentModelId = '';
 
 // DOM elements
 const fileUpload = document.getElementById('file-upload');
@@ -97,65 +99,118 @@ function saveModifiedText() {
 
 // Check text similarity
 async function checkTextSimilarity() {
-    if (!originalText || !modifiedText) {
-        alert('Пожалуйста, загрузите файл и введите модифицированный текст');
-        return;
-    }
+    if (!currentModelId) {
+    showError('Пожалуйста, выберите модель');
+    return;
+  }
+  if (!originalText || !modifiedText) {
+    alert('Пожалуйста, загрузите файл и введите модифицированный текст');
+    return;
+  }
 
-    try {
-        checkSynonymyBtn.disabled = true;
-        checkSynonymyBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Обработка...';
+  try {
+    checkSynonymyBtn.disabled = true;
+    checkSynonymyBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Обработка...';
 
-        console.log('Отправляемый текст 1:', originalText.substring(0, 50) + '...');
-        console.log('Отправляемый текст 2:', modifiedText.substring(0, 50) + '...');
+    const response = await fetch('/api/similarity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text1: originalText,
+        text2: modifiedText,
+        modelId: currentModelId // Можно выбрать из списка моделей
+      })
+    });
 
-        // Кодируем оба текста в Base64
-        const encodedText1 = btoa(unescape(encodeURIComponent(originalText)));
-        const encodedText2 = btoa(unescape(encodeURIComponent(modifiedText)));
+    if (!response.ok) throw new Error(await response.text());
 
-        const response = await fetch('/api/embedding', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                text1: encodedText1,
-                text2: encodedText2 
-            })
-        });
+    const results = await response.json();
+    console.log('Similarity results:', results);
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-        }
+    // Формируем полные данные для отображения
+    const displayData = {
+      ...results,
+      embedding1: results.embeddings?.[0] || [],
+      embedding2: results.embeddings?.[1] || []
+    };
 
-        const data = await response.json();
-        console.log('Полученные данные:', data);
+    displayResults(displayData);
 
-        // Форматируем результаты для отображения
-        const formattedResults = {
-            embedding1: data.embedding1,
-            embedding2: data.embedding2,
-            similarity: data.cosine_similarity,
-            angular_similarity: data.angular_similarity_radians,
-            developer_value: data.developer_value || null
-        };
-
-        displayResults(formattedResults);
-
-    } 
-    catch (error) {
-        console.error('Ошибка при проверке синонимии:', error);
-        alert(`Ошибка: ${error.message}`);
-    } 
-    finally {
-        checkSynonymyBtn.disabled = false;
-        checkSynonymyBtn.innerHTML = '<i class="bi bi-graph-up"></i> Проверить синонимию';
-    }
+  } catch (error) {
+    console.error('Ошибка сравнения:', error);
+    alert(`Ошибка: ${error.message}`);
+  } finally {
+    checkSynonymyBtn.disabled = false;
+    checkSynonymyBtn.innerHTML = '<i class="bi bi-graph-up"></i> Проверить синонимию';
+  }
 }
 
 
 
-function displayResults(results) {
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadModels();
+  initModelSelector();
+});
 
+// Загрузка списка моделей
+async function loadModels() {
+  try {
+    const response = await fetch('/api/models');
+    if (!response.ok) throw new Error('Failed to load models');
+    
+    availableModels = await response.json();
+    if (availableModels.length > 0) {
+      currentModelId = availableModels[0].model_id;
+    }
+  } catch (error) {
+    console.error('Error loading models:', error);
+    showError('Не удалось загрузить список моделей');
+  }
+}
+
+// Инициализация селектора моделей
+function initModelSelector() {
+  const selector = document.getElementById('model-selector');
+  
+  // Очищаем и добавляем опции
+  selector.innerHTML = '';
+  availableModels.forEach(model => {
+    const option = document.createElement('option');
+    option.value = model.model_id;
+    option.textContent = model.model_name 
+      ? `${model.model_name} (${model.dimension}D)`
+      : `Model ${model.model_id.substring(0, 8)} (${model.dimension}D)`;
+    selector.appendChild(option);
+  });
+  
+  // Обработчик изменения
+  selector.addEventListener('change', (e) => {
+    currentModelId = e.target.value;
+    updateModelInfo();
+  });
+  
+  updateModelInfo();
+}
+
+// Обновление информации о выбранной модели
+function updateModelInfo() {
+  const model = availableModels.find(m => m.model_id === currentModelId);
+  const infoElement = document.getElementById('model-info');
+  
+  if (model) {
+    infoElement.innerHTML = `
+      <strong>Модель:</strong> ${model.model_name || 'Без названия'}<br>
+      <strong>Размерность:</strong> ${model.dimension}D<br>
+      <small class="text-muted">ID: ${model.model_id}</small>
+    `;
+  } else {
+    infoElement.textContent = 'Модель не выбрана';
+  }
+}
+
+function displayResults(results) {
+    const startTime = performance.now();
     const vectorPairs = [];
     const elementsToShow = Math.min(results.embedding1.length, results.embedding2.length);
     
@@ -222,4 +277,6 @@ function displayResults(results) {
     }
 
     resultsContainer.style.display = 'block';
+    const endTime = performance.now();
+    document.getElementById('execution-time').textContent = `${(endTime - startTime).toFixed(2)} мс`;
 }

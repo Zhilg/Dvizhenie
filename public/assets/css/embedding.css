@@ -153,3 +153,17 @@ textarea.form-control:focus {
     font-family: 'Fira Code', monospace;
     font-size: 0.9rem;
 }
+
+#model-info {
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 5px;
+  border: 1px solid #eee;
+}
+
+.model-dimension-badge {
+  font-size: 0.8em;
+  background: #e9ecef;
+  padding: 2px 5px;
+  border-radius: 3px;
+}
