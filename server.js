@@ -79,23 +79,29 @@ app.get('/clusterization', (req, res) => {
 
 // API Proxy Routes
 
-// 1. Нормализация (оставляем без изменений)
+// 1. Нормализация, подогнанная под новое апи
 app.post('/api/normalize', async (req, res) => {
   try {
-    console.log('Normalization request:', { text: req.body.text });
+    console.log('Normalization request:', { text: req.body.toString().substring(0, 100) + '...' });
     
-    const response = await axios.post(`${NORMALIZATION_SERVICE_URL}/normalize`, {
-      text: req.body.text
-    }, {
+    const response = await axios.post(NORMALIZATION_SERVICE_URL, req.body, {
       headers: {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
+        'Content-Type': 'text/plain',
+        'Accept': 'text/plain'
       },
-      timeout: 5000
+      timeout: 5000,
+      responseType: 'text'
     });
     
-    console.log('Normalization successful:', { normalized: response.data.normalized });
-    res.json(response.data);
+    console.log('Normalization successful:', { 
+      language: response.headers['language'],
+      normalized: response.data.substring(0, 100) + '...' 
+    });
+    
+    res
+      .set('Content-Type', 'text/plain')
+      .set('Language', response.headers['language'])
+      .send(response.data);
   } catch (error) {
     handleProxyError(error, 'Normalization', res);
   }

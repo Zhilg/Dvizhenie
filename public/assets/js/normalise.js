@@ -69,59 +69,60 @@ document.addEventListener('DOMContentLoaded', () => {
             processBtn.disabled = true;
             processBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Обработка...';
             
-            console.log('Отправляемый текст:', text); // Добавьте логирование
+            console.log('Отправляемый текст:', text.substring(0, 100) + '...');
             
-            const encodedText = btoa(unescape(encodeURIComponent(text)));
-            const response = await fetch(DOCKER_SERVICE_URL, {
+            const response = await fetch('/api/normalize', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: encodedText })
+                headers: { 
+                    'Content-Type': 'text/plain',
+                    'Accept': 'text/plain'
+                },
+                body: text
             });
             
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             
-            const data = await response.json();
-            console.log('Полученные данные:', data); // Добавьте логирование
+            const language = response.headers.get('language');
+            const normalizedText = await response.text();
+            console.log('Полученные данные:', {
+                language,
+                normalized: normalizedText.substring(0, 100) + '...'
+            });
             
-            const decodedText = decodeURIComponent(escape(atob(data.normalized_text)));
-            resultDiv.innerHTML = decodedText;
+            resultDiv.innerHTML = normalizedText.replace(/\n/g, '<br>');
             
             const dmp = new diff_match_patch();
-            const diffs = dmp.diff_main(text, decodedText);
+            const diffs = dmp.diff_main(text, normalizedText);
             dmp.diff_cleanupSemantic(diffs);
 
             let htmlOutput = '';
             for (let i = 0; i < diffs.length; i++) {
-                const op = diffs[i][0]; // Operation: -1 = delete, 0 = equal, 1 = insert
+                const op = diffs[i][0];
                 let text = diffs[i][1]
                     .replace(/&/g, '&amp;')
                     .replace(/</g, '&lt;')
                     .replace(/>/g, '&gt;');
 
                 if (op === -1) {
-                    // For deletions, replace spaces and newlines with visible markers
                     text = text
                         .replace(/ /g, '<span class="deleted-space">__</span>')
                         .replace(/\n/g, '<span class="deleted-newline">¶</span>');
                     htmlOutput += `<span class="deletion">${text}</span>`;
                 } else if (op === 1) {
-                    // For insertions, replace spaces and newlines with visible markers
                     text = text
                         .replace(/ /g, '<span class="inserted-space">__</span>')
                         .replace(/\n/g, '<span class="inserted-newline">¶</span>');
                     htmlOutput += `<span class="insertion">${text}</span>`;
                 } else {
-                    // For unchanged text, only convert newlines to <br>
                     text = text.replace(/\n/g, '<br>');
                     htmlOutput += text;
                 }
             }
 
             comparisonDiv.innerHTML = htmlOutput;
-                    
             errorDiv.classList.add('d-none');
         } catch (error) {
-            console.error('Полная ошибка:', error);
+            console.error('Ошибка:', error);
             showError(`Ошибка: ${error.message}`);
         } finally {
             processBtn.disabled = false;
