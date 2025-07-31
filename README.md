@@ -1,52 +1,5 @@
 ВАЖНО!!!
 ===========================================================================
-В целях сохранения работы с контейнерами других разработчиков, пока оболочка отправляет запросы на:
-
-/normalize - В виде
-```HTTP
-
-POST /normalize HTTP/1.1
-content-type: 'application/json'
-x-requested-with: 'XMLHttpRequest'
-
-{
-  "text": "текст в формате Base64"   
-}
-```
-/embedding - В виде
-```HTTP
-POST /embedding HTTP/1.1
-
-content-type: 'application/json'
-  
-{
-  "text1": "текст в формате Base64",
-  "text2": "текст в формате Base64"
-}
-
-```
-/semantic/upload - В виде
-```HTTP
-POST /semantic/upload HTTP/1.1
-
-content-type: 'application/json'
-
-{
-  "folder_path": "Путь к папке на стороне обработчика (Пример: /shared_data/{timestamp})",
-  "collection_name": "Имя коллекции",
-  "processes": "Количество процессов для обработки коллекции"
-}
-```
-/semantic/search - В виде
-```HTTP
-POST /semantic/search HTTP/1.1
-
-{
-  "querry": "Запрос (текст в формате Base64)",
-  "collection_name": "Имя коллекции, в которой будет производиться поиск",
-  "top_k": "Количество возвращаемых результатов (результаты поиска возвращаются в порядке убывания степеней схожести)"            
-}
-```
 В /clusterisation пока возвращается Mock-ответ
 
 НОВОЕ API НИЖЕ
