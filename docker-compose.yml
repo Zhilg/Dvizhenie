@@ -5,7 +5,7 @@ services:
     ports:
       - "5001:5001"
     volumes:
-      - ./shared_data:/shared_data  # Общая папка для всех сервисов
+      - ./shared_data:/text-normalizer/shared_data  # Общая папка для всех сервисов
     networks:
       - new_network
 
@@ -35,6 +35,7 @@ services:
       - normalize-service
       - embedding-service
       - qdrant-service
+
     networks:
       - new_network
 
@@ -49,11 +50,27 @@ services:
   dvizhenie:
     image: dvizhenie
     ports:
+      - "4000:4000"
+    volumes:
+      - ./shared_data:/app/shared_data
+    networks:
+      - new_network
+    depends_on:
+      - dvizhenie-task_1-3-1
+
+  dvizhenie-task_1-3-1:
+    image: task_1-3
+    ports:
       - "3000:3000"
     volumes:
       - ./shared_data:/app/shared_data
     networks:
       - new_network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
 
 networks:
   new_network:
@@ -65,4 +82,4 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: ./shared_data  # Абсолютный путь на хосте
+      device: ./shared_data 

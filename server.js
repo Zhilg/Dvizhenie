@@ -11,18 +11,23 @@ const cosineSimilarity = require('cosine-similarity');
 const router = express.Router();
 
 const app = express();
-const PORT = 3000;
+const PORT = 4000;
 
 // Configuration
-const EMBEDDING_SERVICE_URL = 'http://embedding-service:8000';
-const NORMALIZATION_SERVICE_URL = 'http://normalize-service:5001';
-const SEMANTIC_SERVICE_URL = 'http://vbd-service:8080'; 
+// const EMBEDDING_SERVICE_URL = 'http://embedding-service:8000';
+// const NORMALIZATION_SERVICE_URL = 'http://normalize-service:5001';
+// const SEMANTIC_SERVICE_URL = 'http://vbd-service:8080'; 
+const EMBEDDING_SERVICE_URL = 'http://dvizhenie-task_1-3-1:3000/api';
+const NORMALIZATION_SERVICE_URL = 'http://dvizhenie-task_1-3-1:3000/api';
+const SEMANTIC_SERVICE_URL = 'http://dvizhenie-task_1-3-1:3000/api'; 
+
 
 // Middleware
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
+app.use(express.text({ type: 'text/plain' })); 
 const upload = multer({ dest: '/app/shared_data' });
 
 // Request validation middleware
@@ -85,9 +90,11 @@ app.get('/clusterization', (req, res) => {
 // 1. Нормализация, подогнанная под новое апи
 app.post('/api/normalize', async (req, res) => {
   try {
-    console.log('Normalization request:', { text: req.body.toString().substring(0, 100) + '...' });
+    console.log('Получен запрос на /api/normalize');  // <-- Добавьте это
+    console.log('Headers:', req.headers);              // <-- И это
+    console.log('Body:', req.body);                   // <-- И это
     
-    const response = await axios.post(NORMALIZATION_SERVICE_URL, req.body, {
+    const response = await axios.post(NORMALIZATION_SERVICE_URL+"/normalize", req.body, {
       headers: {
         'Content-Type': 'text/plain',
         'Accept': 'text/plain'
@@ -320,7 +327,7 @@ app.get('/api/models', async (req, res) => {
     handleProxyError(error, 'Models list', res);
   }
 });
-
+// До всех роутов!
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
