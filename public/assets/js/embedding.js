@@ -96,6 +96,31 @@ function saveModifiedText() {
     console.log('Modified text saved to:', modifiedPath);
     alert('Изменения успешно сохранены');
 }
+// Функция для расчета косинусной близости
+function calculateCosineSimilarity(vecA, vecB) {
+    if (vecA.length !== vecB.length) {
+        throw new Error('Векторы должны иметь одинаковую размерность');
+    }
+    
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    
+    for (let i = 0; i < vecA.length; i++) {
+        dotProduct += vecA[i] * vecB[i];
+        normA += vecA[i] * vecA[i];
+        normB += vecB[i] * vecB[i];
+    }
+    
+    normA = Math.sqrt(normA);
+    normB = Math.sqrt(normB);
+    
+    if (normA === 0 || normB === 0) {
+        return 0; // Чтобы избежать деления на ноль
+    }
+    
+    return dotProduct / (normA * normB);
+}
 
 // Check text similarity
 async function checkTextSimilarity() {
@@ -125,13 +150,17 @@ async function checkTextSimilarity() {
     if (!response.ok) throw new Error(await response.text());
 
     const results = await response.json();
-    console.log('Similarity results:', results);
+    const embedding1 = results.embeddings?.[0] || [];
+    const embedding2 = results.embeddings?.[1] || [];
+    const cosineSimilarity = calculateCosineSimilarity(embedding1, embedding2);
+
 
     // Формируем полные данные для отображения
     const displayData = {
       ...results,
-      embedding1: results.embeddings?.[0] || [],
-      embedding2: results.embeddings?.[1] || []
+      embedding1: embedding1,
+      embedding2: embedding2,
+      similarity: cosineSimilarity
     };
 
     displayResults(displayData);
@@ -212,9 +241,9 @@ function updateModelInfo() {
 function displayResults(results) {
     const startTime = performance.now();
     const vectorPairs = [];
-    const elementsToShow = Math.min(results.embedding1.length, results.embedding2.length);
     
-    for (let i = 0; i < elementsToShow; i++) {
+    // Create vector pairs for display
+    for (let i = 0; i < results.embedding1.length; i++) {
         const elem1 = results.embedding1[i];
         const elem2 = results.embedding2[i];
         const diff = Math.abs(elem1 - elem2);
@@ -228,55 +257,78 @@ function displayResults(results) {
 
     // Format vector pairs for display
     const vectorComparison = document.getElementById('vector-comparison');
-    vectorComparison.innerHTML = '';
-    
-    vectorPairs.forEach(pair => {
-        const pairElement = document.createElement('span');
-        pairElement.className = 'vector-pair';
-        pairElement.textContent = `(${pair.original}, ${pair.modified}, ${pair.diff}%)`;
-        vectorComparison.appendChild(pairElement);
-    });
+    if (vectorComparison) {
+        vectorComparison.innerHTML = '';
+        
+        vectorPairs.forEach(pair => {
+            const pairElement = document.createElement('span');
+            pairElement.className = 'vector-pair';
+            pairElement.textContent = `(${pair.original}, ${pair.modified}, ${pair.diff}%)`;
+            vectorComparison.appendChild(pairElement);
+        });
+    }
 
-    // Show full dimension
-    document.getElementById('vector-dimension').textContent = 
-        `${results.embedding1.length} элементов`;
-    
-    // Show cosine similarity
+    // Обрабатываем косинусную близость
     const cosineSimilarity = parseFloat(results.similarity);
-    document.getElementById('similarity-badge').textContent = cosineSimilarity.toFixed(6);
-    
-    // Set cosine similarity text
+    const similarityBadge = document.getElementById('similarity-badge');
     const similarityText = document.getElementById('similarity-text');
-    if (cosineSimilarity > 0.8) {
-        similarityText.innerHTML = '<span class="text-success">Высокая схожесть</span>';
-    } else if (cosineSimilarity > 0.5) {
-        similarityText.innerHTML = '<span class="text-warning">Средняя схожесть</span>';
-    } else {
-        similarityText.innerHTML = '<span class="text-danger">Низкая схожесть</span>';
+    console.log('similarity value:', results.similarity, typeof results.similarity);
+    if (similarityBadge) {
+        similarityBadge.textContent = cosineSimilarity.toFixed(6);
     }
-    
-    // Show angular difference in radians
-    const angularDiff =  parseFloat(results.angular_similarity);
-    document.getElementById('angular-badge').textContent = angularDiff.toFixed(6);
-    
-    // Set angular difference text
+
+    if (similarityText) {
+        if (cosineSimilarity > 0.8) {
+            similarityText.innerHTML = '<span class="text-success">Высокая схожесть</span>';
+        } else if (cosineSimilarity > 0.5) {
+            similarityText.innerHTML = '<span class="text-warning">Средняя схожесть</span>';
+        } else {
+            similarityText.innerHTML = '<span class="text-danger">Низкая схожесть</span>';
+        }
+    }
+
+    // Обрабатываем угловое расхождение (вычисляем из косинусной близости)
+    const angularDiff = Math.acos(cosineSimilarity);
+    const angularBadge = document.getElementById('angular-badge');
     const angleText = document.getElementById('angle-text');
-    if (angularDiff < 0.5) {
-        angleText.innerHTML = '<span class="text-success">Малое расхождение</span>';
-    } else if (angularDiff < 1.0) {
-        angleText.innerHTML = '<span class="text-warning">Умеренное расхождение</span>';
-    } else {
-        angleText.innerHTML = '<span class="text-danger">Большое расхождение</span>';
+
+    if (angularBadge) {
+        angularBadge.textContent = angularDiff.toFixed(6);
     }
 
-    if (results.developer_value) {
-        document.getElementById('developer-value').textContent = results.developer_value;
-        document.getElementById('developer-value-container').style.display = 'block';
-    } else {
-        document.getElementById('developer-value-container').style.display = 'none';
+    if (angleText) {
+        if (angularDiff < 0.5) {
+            angleText.innerHTML = '<span class="text-success">Малое расхождение</span>';
+        } else if (angularDiff < 1.0) {
+            angleText.innerHTML = '<span class="text-warning">Умеренное расхождение</span>';
+        } else {
+            angleText.innerHTML = '<span class="text-danger">Большое расхождение</span>';
+        }
     }
 
-    resultsContainer.style.display = 'block';
-    const endTime = performance.now();
-    document.getElementById('execution-time').textContent = `${(endTime - startTime).toFixed(2)} мс`;
+    // Обрабатываем developer value
+    const devValueContainer = document.getElementById('developer-value-container');
+    const devValue = document.getElementById('developer-value');
+    
+    if (devValueContainer && devValue) {
+        if (results.developer_value) {
+            devValue.textContent = JSON.stringify(results.developer_value, null, 2);
+            devValueContainer.style.display = 'block';
+        } else {
+            devValueContainer.style.display = 'none';
+        }
+    }
+
+    // Показываем блок результатов
+    const resultsContainer = document.getElementById('vector-results');
+    if (resultsContainer) {
+        resultsContainer.style.display = 'block';
+    }
+
+    // Отображаем время выполнения
+    const executionTimeElement = document.getElementById('execution-time');
+    if (executionTimeElement) {
+        const endTime = performance.now();
+        executionTimeElement.textContent = `${(endTime - startTime).toFixed(2)} мс`;
+    }
 }

@@ -30,7 +30,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./shared_data:/vbd/shared_data
+      - ./shared_data:/shared_data
     depends_on:
       - normalize-service
       - embedding-service
@@ -56,21 +56,25 @@ services:
     networks:
       - new_network
     depends_on:
-      - dvizhenie-task_1-3-1
+      # - dvizhenie-task_1-3-1
+      - qdrant-service
+      - vbd-service
+      - normalize-service
+      - embedding-service
 
-  dvizhenie-task_1-3-1:
-    image: task_1-3
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./shared_data:/app/shared_data
-    networks:
-      - new_network
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities: [gpu]
+  # dvizhenie-task_1-3-1:
+  #   image: task_1-3
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - ./shared_data:/app/shared_data
+  #   networks:
+  #     - new_network
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - capabilities: [gpu]
 
 networks:
   new_network:

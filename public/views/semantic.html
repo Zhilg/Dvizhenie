@@ -9,8 +9,10 @@
         <div class="mb-4">
             <h3><i class="bi bi-upload"></i> Загрузка документов</h3>
             <div class="mb-3">
-                <label class="form-label fw-bold">Название коллекции:</label>
-                <input type="text" id="collectionName" class="form-control" placeholder="Введите название коллекции">
+                <label class="form-label fw-bold">Выберите модель:</label>
+                <select id="modelSelect" class="form-select">
+                    <option value="">-- Загрузка моделей --</option>
+                </select>
             </div>
             <div class="mb-3">
                 <label class="form-label fw-bold">Выберите папку с документами:</label>
@@ -25,6 +27,10 @@
                 </div>
                 <div class="form-text">Поддерживается в Chrome и Edge</div>
             </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold">TTL (часы):</label>
+                <input type="number" id="ttlHours" class="form-control" placeholder="0 - не удалять">
+            </div>
             <button id="uploadBtn" class="btn btn-primary">
                 <i class="bi bi-cloud-upload"></i> Загрузить документы
             </button>
@@ -32,316 +38,464 @@
         
         <!-- Блок поиска -->
         <div class="mb-4">
-            <h3><i class="bi bi-search"></i> Поиск по коллекции</h3>
+            <h3><i class="bi bi-search"></i> Поиск по корпусу</h3>
             <div class="mb-3">
-                <label class="form-label fw-bold">Выберите коллекцию:</label>
-                <select id="collectionSelect" class="form-select">
-                    <option value="">-- Загрузите коллекции --</option>
+                <label class="form-label fw-bold">Выберите модель:</label>
+                <select id="searchModelSelect" class="form-select">
+                    <option value="">-- Загрузка моделей --</option>
                 </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold">ID корпуса:</label>
+                <div class="input-group">
+                    <select id="corpusId" class="form-select">
+                        <option value="">-- Выберите корпус --</option>
+                    </select>
+                    <button class="btn btn-outline-secondary" type="button" 
+                            id="showHistoryBtn" title="История">
+                        <i class="bi bi-clock-history"></i>
+                    </button>
+                </div>
             </div>
             <div class="mb-3">
                 <label for="searchQuery" class="form-label fw-bold">Поисковый запрос:</label>
                 <textarea id="searchQuery" class="form-control" rows="3" 
                           placeholder="Введите текст для поиска"></textarea>
             </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold">Количество результатов:</label>
+                <input type="number" id="resultAmount" class="form-control" value="5" min="1">
+            </div>
             <button id="searchBtn" class="btn btn-primary">
                 <i class="bi bi-search"></i> Найти
-            </button>
-        </div>
-        
-        <!-- Блок управления коллекциями -->
-        <div>
-            <h3><i class="bi bi-collection"></i> Управление коллекциями</h3>
-            <button id="listCollectionsBtn" class="btn btn-outline-info me-2">
-                <i class="bi bi-list-ul"></i> Показать коллекции
-            </button>
-            <button id="deleteCollectionBtn" class="btn btn-outline-danger me-2">
-                <i class="bi bi-trash"></i> Удалить коллекцию
-            </button>
-            <button id="deleteAllCollectionsBtn" class="btn btn-outline-danger">
-                <i class="bi bi-trash-fill"></i> Удалить все
             </button>
         </div>
     </div>
     
     <!-- Результаты -->
     <div id="resultsContainer" class="mt-4" style="display: none;">
-        <h3><i class="bi bi-graph-up"></i> Результаты анализа</h3>
+        <h3><i class="bi bi-graph-up"></i> Результаты</h3>
         <div id="uploadResults" class="alert alert-info mb-3" style="display: none;"></div>
         <div id="searchResults" class="mb-3" style="display: none;"></div>
-        <div id="collectionList" class="alert alert-secondary" style="display: none;"></div>
     </div>
 
     <div id="uploadProgress" class="mt-3"></div>
-
-
-    <button id="deleteCollectionBtn" class="btn btn-outline-danger me-2">
-    <i class="bi bi-trash"></i> Удалить корпус
-    </button>
 </div>
-
+<!-- Модальное окно истории -->
+<div class="modal fade" id="historyModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">История корпусов</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="historyModalBody">
+                <!-- Содержимое будет сгенерировано JS -->
+            </div>
+        </div>
+    </div>
+</div>
 <script>
-const BASE_URL = "/api/semantic"; 
+const BASE_URL = "/api"; // Базовый URL API
+
 // Глобальные переменные
 let currentJobId = null;
 let currentCorpusId = null;
-let currentModelId = 'default-model';
 let checkStatusInterval = null;
 
-// Обновленная функция загрузки документов
+// Инициализация - загрузка моделей
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadModels();
+});
+
+// Загрузка списка моделей
+async function loadModels() {
+    try {
+        const response = await fetch(`${BASE_URL}/models`);
+        if (!response.ok) throw new Error(await response.text());
+        
+        const models = await response.json();
+        const modelSelect = document.getElementById('modelSelect');
+        const searchModelSelect = document.getElementById('searchModelSelect');
+        
+        // Очищаем и добавляем модели
+        modelSelect.innerHTML = '<option value="">-- Выберите модель --</option>';
+        searchModelSelect.innerHTML = '<option value="">-- Выберите модель --</option>';
+        
+        models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.model_id;
+            option.textContent = model.model_name || model.model_id;
+            
+            modelSelect.appendChild(option.cloneNode(true));
+            searchModelSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error("Error loading models:", error);
+        showError('Ошибка загрузки моделей: ' + error.message);
+    }
+}
+
+// Загрузка документов
 async function uploadDocuments() {
-  if (!folderInput.files.length) {
-    showError('Пожалуйста, выберите папку с документами');
-    return;
-  }
-
-  showLoading(uploadBtn);
-
-  try {
-    const formData = new FormData();
-    for (let i = 0; i < folderInput.files.length; i++) {
-      formData.append('files', folderInput.files[i]);
+    const folderInput = document.getElementById('folderInput');
+    const modelSelect = document.getElementById('modelSelect');
+    const ttlHours = document.getElementById('ttlHours').value;
+    const uploadBtn = document.getElementById('uploadBtn');
+    
+    if (!folderInput.files.length) {
+        showError('Пожалуйста, выберите папку с документами');
+        return;
+    }
+    
+    if (!modelSelect.value) {
+        showError('Пожалуйста, выберите модель');
+        return;
     }
 
-    const response = await fetch('/api/semantic/upload', {
-      method: 'POST',
-      headers: {
-        'x-model-id': currentModelId,
-        'x-ttl-hours': '24'
-      },
-      body: formData
-    });
+    showLoading(uploadBtn);
 
-    if (!response.ok) throw new Error(await response.text());
+    try {
+        const formData = new FormData();
+        for (let i = 0; i < folderInput.files.length; i++) {
+            formData.append('files', folderInput.files[i]);
+        }
 
-    const data = await response.json();
-    currentJobId = data.job_id;
+        const response = await fetch(`${BASE_URL}/semantic/upload`, {
+            method: 'POST',
+            headers: {
+                'x-model-id': modelSelect.value,
+                'x-ttl-hours': ttlHours || '0'
+            },
+            body: formData
+        });
 
-    uploadResults.innerHTML = `
-      <h4 class="alert-heading">Загрузка начата</h4>
-      <p><strong>ID задачи:</strong> ${currentJobId}</p>
-      <p><strong>Примерное время:</strong> ${data.estimated_time_min || 'неизвестно'} минут</p>
-      <div id="uploadProgress"></div>
-    `;
-    
-    // Запускаем проверку статуса
-    checkStatusInterval = setInterval(checkUploadStatus, 5000);
-    
-  } catch (error) {
-    console.error("Upload error:", error);
-    showError('Ошибка загрузки: ' + error.message);
-  } finally {
-    resetButton(uploadBtn, '<i class="bi bi-cloud-upload"></i> Загрузить документы');
-  }
+        if (!response.ok) throw new Error(await response.text());
+
+        const data = await response.json();
+        currentJobId = data.job_id;
+
+        document.getElementById('uploadResults').innerHTML = `
+            <h4 class="alert-heading">Загрузка начата</h4>
+            <p><strong>ID задачи:</strong> ${currentJobId}</p>
+            <p><strong>Примерное время:</strong> ${data.estimated_time_min || 'неизвестно'} минут</p>
+            <div id="uploadProgress"></div>
+        `;
+        
+        // Запускаем проверку статуса
+        checkStatusInterval = setInterval(checkUploadStatus, 5000);
+        
+    } catch (error) {
+        console.error("Upload error:", error);
+        showError('Ошибка загрузки: ' + error.message);
+    } finally {
+        resetButton(uploadBtn, '<i class="bi bi-cloud-upload"></i> Загрузить документы');
+    }
 }
 
 // Проверка статуса загрузки
 async function checkUploadStatus() {
-  try {
-    const response = await fetch(`/api/jobs/${currentJobId}`);
-    const status = await response.json();
-    
-    const progressDiv = document.getElementById('uploadProgress');
-    if (progressDiv) {
-      progressDiv.innerHTML = `
-        <p><strong>Статус:</strong> ${status.status}</p>
-        ${status.progress ? `<p>Прогресс: ${status.progress.toFixed(1)}%</p>` : ''}
-        ${status.details ? `
-          <p>Обработано файлов: ${status.details.files_processed || 0}</p>
-          <p>Объем данных: ${(status.details.bytes_processed / (1024**3)).toFixed(2)} GB</p>
-        ` : ''}
-      `;
+    try {
+        const response = await fetch(`${BASE_URL}/jobs/${currentJobId}`);
+        const status = await response.json();
+        
+        const progressDiv = document.getElementById('uploadProgress');
+        if (progressDiv) {
+            progressDiv.innerHTML = `
+                <p><strong>Статус:</strong> ${status.status}</p>
+                ${status.progress ? `<p>Прогресс: ${status.progress.toFixed(1)}%</p>` : ''}
+                ${status.details ? `
+                    <p>Обработано файлов: ${status.details.files_processed || 0}</p>
+                    <p>Объем данных: ${(status.details.bytes_processed / (1024**3)).toFixed(2)} GB</p>
+                ` : ''}
+            `;
+        }
+        
+        if (status.status === 'completed') {
+            clearInterval(checkStatusInterval);
+            await getUploadResults(status.result_url);
+        }
+        
+    } catch (error) {
+        console.error("Status check error:", error);
+        clearInterval(checkStatusInterval);
+        showError('Ошибка проверки статуса: ' + error.message);
     }
-    
-    if (status.status === 'completed') {
-      clearInterval(checkStatusInterval);
-      await getUploadResults(status.result_url);
-    }
-    
-  } catch (error) {
-    console.error("Status check error:", error);
-    clearInterval(checkStatusInterval);
-    showError('Ошибка проверки статуса: ' + error.message);
-  }
 }
 
-// Получение результатов загрузки
 async function getUploadResults(resultUrl) {
-  try {
-    const response = await fetch(`/api/results${resultUrl}`);
-    const results = await response.json();
-    currentCorpusId = results.corpus_id;
-    
-    uploadResults.innerHTML += `
-      <div class="alert alert-success mt-3">
-        <h4>Загрузка завершена</h4>
-        <p><strong>ID корпуса:</strong> ${results.corpus_id}</p>
-        <p><strong>Файлов:</strong> ${results.file_count}</p>
-        <p><strong>Размер индекса:</strong> ${results.index_stats.total_size_gb} GB</p>
-      </div>
-    `;
-    
-    // Обновляем список корпусов
-    await updateCorporaList();
-    
-  } catch (error) {
-    console.error("Results error:", error);
-    showError('Ошибка получения результатов: ' + error.message);
-  }
+    try {
+        const resultId = resultUrl.split('/').pop();
+        const response = await fetch(`${BASE_URL}/results/${resultId}`);
+        const results = await response.json();
+        
+        currentCorpusId = results.corpus_id;
+        const corpusSelect = document.getElementById('corpusId');
+        corpusSelect.value = currentCorpusId;
+        
+        document.getElementById('uploadResults').innerHTML += `
+            <div class="alert alert-success mt-3">
+                <h4>Загрузка завершена</h4>
+                <p><strong>ID корпуса:</strong> ${results.corpus_id}</p>
+                <p><strong>Файлов:</strong> ${results.file_count}</p>
+                <p><strong>Размер индекса:</strong> ${results.index_stats.total_size_gb} GB</p>
+            </div>
+        `;
+        
+        saveCorpusId(results.corpus_id, document.getElementById('modelSelect').value, results.file_count);
+        loadCorpusHistory();
+        
+    } catch (error) {
+        console.error("Results error:", error);
+        showError('Ошибка получения результатов: ' + error.message);
+    }
 }
 
-// Обновленная функция поиска
+document.getElementById('showHistoryBtn').addEventListener('click', function() {
+    loadCorpusHistory(); // Обновляем данные перед открытием
+    const modal = new bootstrap.Modal(document.getElementById('historyModal'));
+    modal.show();
+});
+
+// Поиск по корпусу
 async function searchDocuments() {
-  if (!currentCorpusId) {
-    showError('Пожалуйста, сначала загрузите документы');
-    return;
-  }
-
-  if (!searchQuery.value) {
-    showError('Пожалуйста, введите поисковый запрос');
-    return;
-  }
-
-  showLoading(searchBtn);
-
-  try {
-    const response = await fetch('/api/semantic/search', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'x-corpus-id': currentCorpusId,
-        'x-result-amount': '5',
-        'x-model-id': currentModelId
-      },
-      body: searchQuery.value
-    });
-
-    if (!response.ok) throw new Error(await response.text());
-
-    const results = await response.json();
-    displaySearchResults(results);
+    const corpusId = document.getElementById('corpusId').value;
+    const searchQuery = document.getElementById('searchQuery');
+    const searchModelSelect = document.getElementById('searchModelSelect');
+    const resultAmount = document.getElementById('resultAmount').value;
+    const searchBtn = document.getElementById('searchBtn');
     
-  } catch (error) {
-    console.error("Search error:", error);
-    showError('Ошибка поиска: ' + error.message);
-  } finally {
-    resetButton(searchBtn, '<i class="bi bi-search"></i> Найти');
-  }
+    if (!corpusId) {
+        showError('Пожалуйста, введите ID корпуса');
+        return;
+    }
+
+    if (!searchQuery.value) {
+        showError('Пожалуйста, введите поисковый запрос');
+        return;
+    }
+    
+    if (!searchModelSelect.value) {
+        showError('Пожалуйста, выберите модель');
+        return;
+    }
+
+    showLoading(searchBtn);
+
+    try {
+        const response = await fetch(`${BASE_URL}/semantic/search`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'text/plain; charset=utf-8',
+                'x-corpus-id': corpusId,
+                'x-result-amount': resultAmount,
+                'x-model-id': searchModelSelect.value
+            },
+            body: searchQuery.value
+        });
+
+        if (!response.ok) throw new Error(await response.text());
+
+        const results = await response.json();
+        displaySearchResults(results);
+        
+    } catch (error) {
+        console.error("Search error:", error);
+        showError('Ошибка поиска: ' + error.message);
+    } finally {
+        resetButton(searchBtn, '<i class="bi bi-search"></i> Найти');
+    }
 }
 
 // Отображение результатов поиска
 function displaySearchResults(results) {
-  let html = `
-    <div class="table-responsive">
-      <table class="table table-striped">
-        <thead>
-          <tr>
-            <th>Документ</th>
-            <th>Фрагмент</th>
-            <th>Сходство</th>
-          </tr>
-        </thead>
-        <tbody>
-  `;
+    const searchResults = document.getElementById('searchResults');
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Документ</th>
+                        <th>Фрагмент</th>
+                        <th>Сходство</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
 
-  results.results.forEach(result => {
+    results.results.forEach(result => {
+        html += `
+            <tr>
+                <td>
+                    <strong>${result.file_id}</strong><br>
+                    <small class="text-muted">${result.fragment || ''}</small>
+                </td>
+                <td>${result.preview || ''}</td>
+                <td>${result.score.toFixed(4)}</td>
+            </tr>
+        `;
+    });
+
     html += `
-      <tr>
-        <td>
-          <strong>${result.file_id}</strong><br>
-          <small class="text-muted">${result.fragment || ''}</small>
-        </td>
-        <td>${result.preview || ''}</td>
-        <td>${result.score.toFixed(4)}</td>
-      </tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="mt-2">Найдено результатов: ${results.results.length}</p>
     `;
-  });
 
-  html += `
-        </tbody>
-      </table>
-    </div>
-    <p class="mt-2">Найдено результатов: ${results.results.length}</p>
-  `;
-
-  searchResults.innerHTML = html;
-  searchResults.style.display = 'block';
-  resultsContainer.style.display = 'block';
+    searchResults.innerHTML = html;
+    searchResults.style.display = 'block';
+    document.getElementById('resultsContainer').style.display = 'block';
 }
 
-// Обновление списка корпусов
-async function updateCorporaList() {
-  try {
-    const response = await fetch('/api/semantic/corpora');
-    const corpora = await response.json();
-    
-    let html = '<h4>Доступные корпуса:</h4><ul class="list-group">';
-    corpora.forEach(corpus => {
-      html += `
-        <li class="list-group-item d-flex justify-content-between align-items-center">
-          ${corpus.name || corpus.id}
-          <span class="badge bg-primary rounded-pill">${corpus.file_count} файлов</span>
-        </li>
-      `;
-    });
-    html += '</ul>';
-    
-    collectionList.innerHTML = html;
-    collectionList.style.display = 'block';
-    
-  } catch (error) {
-    console.error("Corpora list error:", error);
-    collectionList.innerHTML = `
-      <div class="alert alert-danger">
-        Ошибка получения списка корпусов: ${error.message}
-      </div>
-    `;
-  }
+// Вспомогательные функции
+function showLoading(button) {
+    button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Обработка...';
+    button.disabled = true;
 }
 
-// Удаление корпуса
-async function deleteCorpus() {
-  if (!currentCorpusId) {
-    showError('Нет активного корпуса для удаления');
-    return;
-  }
-
-  if (!confirm(`Удалить корпус ${currentCorpusId}?`)) return;
-
-  showLoading(deleteCollectionBtn);
-
-  try {
-    const response = await fetch(`/api/semantic/corpora/${currentCorpusId}`, {
-      method: 'DELETE'
-    });
-
-    if (!response.ok) throw new Error(await response.text());
-
-    collectionList.innerHTML = `
-      <div class="alert alert-success">
-        Корпус успешно удален
-      </div>
-    `;
-    
-    currentCorpusId = null;
-    await updateCorporaList();
-    
-  } catch (error) {
-    console.error("Delete error:", error);
-    showError('Ошибка удаления: ' + error.message);
-  } finally {
-    resetButton(deleteCollectionBtn, '<i class="bi bi-trash"></i> Удалить корпус');
-  }
+function resetButton(button, originalText) {
+    button.innerHTML = originalText;
+    button.disabled = false;
 }
 
-// Инициализация
-document.addEventListener('DOMContentLoaded', async () => {
-  await updateCorporaList();
-  
-  // Обновленные обработчики
-  uploadBtn.addEventListener('click', uploadDocuments);
-  searchBtn.addEventListener('click', searchDocuments);
-  deleteCollectionBtn.addEventListener('click', deleteCorpus);
-  listCollectionsBtn.addEventListener('click', updateCorporaList);
+function showError(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-danger';
+    alertDiv.textContent = message;
+    
+    const container = document.getElementById('resultsContainer');
+    container.insertBefore(alertDiv, container.firstChild);
+    container.style.display = 'block';
+    
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+
+// Обработчики событий
+document.getElementById('uploadBtn').addEventListener('click', uploadDocuments);
+document.getElementById('searchBtn').addEventListener('click', searchDocuments);
+document.getElementById('folderInput').addEventListener('change', function() {
+    document.getElementById('folderName').value = this.files.length > 0 ? 
+        `${this.files.length} файлов выбрано` : 'Папка не выбрана';
 });
+
+// Модифицируем функцию saveCorpusId для хранения больше информации
+function saveCorpusId(corpusId, modelId = null, fileCount = null) {
+    const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
+    
+    const existingIndex = history.findIndex(item => item.id === corpusId);
+    
+    const corpusInfo = {
+        id: corpusId,
+        model: modelId || document.getElementById('modelSelect').value,
+        files: fileCount || null,
+        date: new Date().toISOString()
+    };
+    
+    if (existingIndex >= 0) {
+        history[existingIndex] = corpusInfo;
+    } else {
+        history.unshift(corpusInfo);
+    }
+    
+    localStorage.setItem('corpusHistory', JSON.stringify(history.slice(0, 10)));
+    loadCorpusDropdown(); // Обновляем выпадающий список
+}
+
+// Обновляем функцию loadCorpusHistory для отображения более подробной информации
+function loadCorpusHistory() {
+    const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
+    updateHistoryModal(history);
+}
+
+// Вызовите при загрузке страницы
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadModels();
+    loadCorpusDropdown(); // Загружаем корпуса в выпадающий список
+    loadCorpusHistory();
+    
+    // Инициализация модального окна
+    const historyModal = document.getElementById('historyModal');
+    new bootstrap.Modal(historyModal); // Инициализируем Bootstrap Modal
+    
+    // Обработчик для выбора файлов
+    document.getElementById('folderInput').addEventListener('change', function() {
+        document.getElementById('folderName').value = this.files.length > 0 ? 
+            `${this.files.length} файлов выбрано` : 'Папка не выбрана';
+    });
+});
+
+// Функция для обновления модального окна истории
+function updateHistoryModal(history) {
+    const modalBody = document.getElementById('historyModalBody');
+    
+    if (history.length === 0) {
+        modalBody.innerHTML = '<p>История поиска пуста</p>';
+        return;
+    }
+    
+    modalBody.innerHTML = `
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>ID корпуса</th>
+                        <th>Модель</th>
+                        <th>Файлов</th>
+                        <th>Дата</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${history.map(corpus => `
+                        <tr>
+                            <td><code>${corpus.id}</code></td>
+                            <td>${corpus.model || 'неизвестна'}</td>
+                            <td>${corpus.files || 'неизвестно'}</td>
+                            <td>${new Date(corpus.date).toLocaleString()}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary use-corpus-btn" 
+                                    data-id="${corpus.id}">
+                                    Использовать
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    // Добавляем обработчики для кнопок "Использовать"
+    document.querySelectorAll('.use-corpus-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.getElementById('corpusId').value = this.getAttribute('data-id');
+            bootstrap.Modal.getInstance(document.getElementById('historyModal')).hide();
+        });
+    });
+}
+
+async function loadCorpusDropdown() {
+    const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
+    const corpusSelect = document.getElementById('corpusId');
+    
+    // Сохраняем текущее значение
+    const currentValue = corpusSelect.value;
+    
+    // Очищаем и добавляем корпуса
+    corpusSelect.innerHTML = '<option value="">-- Выберите корпус --</option>';
+    
+    history.forEach(corpus => {
+        const option = document.createElement('option');
+        option.value = corpus.id;
+        option.textContent = `${corpus.id} (модель: ${corpus.model || 'неизвестна'}, файлов: ${corpus.files || '?'})`;
+        corpusSelect.appendChild(option);
+    });
+    
+    // Восстанавливаем выбранное значение, если оно есть в списке
+    if (currentValue && history.some(c => c.id === currentValue)) {
+        corpusSelect.value = currentValue;
+    }
+}
+
 </script>

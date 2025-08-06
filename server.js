@@ -8,18 +8,21 @@ const FormData = require('form-data');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const cosineSimilarity = require('cosine-similarity');
-const router = express.Router();
+const { promisify } = require('util');
+const stream = require('stream');
+const pipeline = promisify(stream.pipeline);
+const { decode } = require('iconv-lite'); // Добавляем библиотеку для работы с кодировками
 
 const app = express();
 const PORT = 4000;
-
+const SHARED_DATA_PATH = "/app/shared_data";
 // Configuration
-// const EMBEDDING_SERVICE_URL = 'http://embedding-service:8000';
-// const NORMALIZATION_SERVICE_URL = 'http://normalize-service:5001';
-// const SEMANTIC_SERVICE_URL = 'http://vbd-service:8080'; 
-const EMBEDDING_SERVICE_URL = 'http://dvizhenie-task_1-3-1:3000/api';
-const NORMALIZATION_SERVICE_URL = 'http://dvizhenie-task_1-3-1:3000/api';
-const SEMANTIC_SERVICE_URL = 'http://dvizhenie-task_1-3-1:3000/api'; 
+const EMBEDDING_SERVICE_URL = 'http://embedding-service:8000';
+const NORMALIZATION_SERVICE_URL = 'http://normalize-service:5001';
+const SEMANTIC_SERVICE_URL = 'http://vbd-service:8080'; 
+// const EMBEDDING_SERVICE_URL = 'http://dvizhenie-task_1-3-1:3000/api';
+// const NORMALIZATION_SERVICE_URL = 'http://dvizhenie-task_1-3-1:3000/api';
+// const SEMANTIC_SERVICE_URL = 'http://dvizhenie-task_1-3-1:3000/api'; 
 
 
 // Middleware
@@ -28,18 +31,7 @@ app.use(morgan('dev'));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(express.text({ type: 'text/plain' })); 
-const upload = multer({ dest: '/app/shared_data' });
 
-// Request validation middleware
-const validateEmbeddingRequest = (req, res, next) => {
-  if (!req.body.text1 || !req.body.text2) {
-    return res.status(400).json({
-      error: 'Validation failed',
-      message: 'Both text1 and text2 are required'
-    });
-  }
-  next();
-};
 
 // Proxy error handler
 const handleProxyError = (error, serviceName, res) => {
@@ -156,6 +148,7 @@ app.post('/api/similarity', express.json(), async (req, res) => {
 
 // Отправка текста на эмбеддинг
 async function getEmbedding(text, modelId) {
+  // console.log(text);
   const response = await axios.post(`${EMBEDDING_SERVICE_URL}/embedding`, text, {
     headers: {
       'Content-Type': 'text/plain',
@@ -163,35 +156,53 @@ async function getEmbedding(text, modelId) {
     },
     timeout: 10000
   });
-  return response.data.embedding;
+  return response.data.embeddings;
 }
-// Загрузка документов
-router.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
+
+const storage = multer.diskStorage({
+destination: (req, file, cb) =>{
+    if (!fs.existsSync(SHARED_DATA_PATH)) {
+      fs.mkdirSync(SHARED_DATA_PATH, { recursive: true });
+    }
+    
+    // Создаем папку с UUID внутри shared_data
+    const corpusId = req.corpusId || uuidv4();
+    req.corpusId = corpusId; // Сохраняем ID для использования в основном обработчике
+    const corpusPath = path.join(SHARED_DATA_PATH, corpusId);
+    
+    if (!fs.existsSync(corpusPath)) {
+      fs.mkdirSync(corpusPath);
+    }
+    
+    cb(null, corpusPath);
+},
+filename: (req, file, cb) =>{
+    file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8')
+    cb(null, file.originalname);
+}
+});
+
+const upload = multer({ storage });
+
+app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
   try {
     const modelId = req.headers['x-model-id'] || 'default-model';
     const ttlHours = req.headers['x-ttl-hours'] || 0;
-    
-    // Создаем уникальную папку для обработки
-    const processingId = uuidv4();
-    const processingPath = path.join(SHARED_DATA_PATH, processingId);
-    fs.mkdirSync(processingPath, { recursive: true });
+    const corpusId = req.corpusId;
 
-    // Переносим файлы
-    req.files.forEach(file => {
-      const targetPath = path.join(processingPath, file.originalname);
-      fs.renameSync(file.path, targetPath);
-    });
-
-    // Отправляем запрос в сервис семантики
+    // Отправляем запрос в VBD сервис
     const response = await axios.post(`${SEMANTIC_SERVICE_URL}/semantic/upload`, {}, {
       headers: {
-        'x-corpus-path': processingId,
+        'x-corpus-path': `${corpusId}`,
         'x-model-id': modelId,
         'x-ttl-hours': ttlHours
       }
     });
 
-    res.status(202).json(response.data);
+    res.status(202).json({
+      ...response.data,
+      corpus_id: corpusId // Возвращаем ID созданной папки
+    });
 
   } catch (error) {
     console.error('Upload error:', error);
@@ -202,8 +213,10 @@ router.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
   }
 });
 
+
+
 // Проверка статуса задачи
-router.get('/api/jobs/:jobId', async (req, res) => {
+app.get('/api/jobs/:jobId', async (req, res) => {
   try {
     const response = await axios.get(`${SEMANTIC_SERVICE_URL}/api/jobs/${req.params.jobId}`);
     res.json(response.data);
@@ -216,10 +229,12 @@ router.get('/api/jobs/:jobId', async (req, res) => {
   }
 });
 
-// Получение результатов
-router.get('/api/results/:resultUrl', async (req, res) => {
+app.get('/api/results/:resultId', async (req, res) => {
   try {
-    const response = await axios.get(`${SEMANTIC_SERVICE_URL}${req.params.resultUrl}`);
+    const resultId = req.params.resultId;
+    console.log(`Proxying to: ${SEMANTIC_SERVICE_URL}/result/${resultId}`);
+    
+    const response = await axios.get(`${SEMANTIC_SERVICE_URL}/result/${resultId}`);
     res.json(response.data);
   } catch (error) {
     console.error('Results error:', error);
@@ -231,7 +246,7 @@ router.get('/api/results/:resultUrl', async (req, res) => {
 });
 
 // Поиск по корпусу
-router.post('/api/semantic/search', express.text(), async (req, res) => {
+app.post('/api/semantic/search', express.text(), async (req, res) => {
   try {
     const response = await axios.post(`${SEMANTIC_SERVICE_URL}/semantic/search`, req.body, {
       headers: {
@@ -253,7 +268,7 @@ router.post('/api/semantic/search', express.text(), async (req, res) => {
 });
 
 // Управление корпусами
-router.get('/api/semantic/corpora', async (req, res) => {
+app.get('/api/semantic/corpora', async (req, res) => {
   try {
     const response = await axios.get(`${SEMANTIC_SERVICE_URL}/semantic/corpora`);
     res.json(response.data);
@@ -266,7 +281,7 @@ router.get('/api/semantic/corpora', async (req, res) => {
   }
 });
 
-router.delete('/api/semantic/corpora/:corpusId', async (req, res) => {
+app.delete('/api/semantic/corpora/:corpusId', async (req, res) => {
   try {
     const response = await axios.delete(`${SEMANTIC_SERVICE_URL}/semantic/corpora/${req.params.corpusId}`);
     res.json(response.data);
@@ -279,7 +294,6 @@ router.delete('/api/semantic/corpora/:corpusId', async (req, res) => {
   }
 });
 
-module.exports = router;
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
@@ -302,33 +316,18 @@ app.use((err, req, res, next) => {
   });
 });
 
-// const AVAILABLE_MODELS = [
-//   {
-//     model_id: '8a7d3f02-3a7c-4b5d-b8e9-0c1f2a6d4e8f',
-//     model_name: 'bert-multilingual',
-//     dimension: 768
-//   },
-//   {
-//     model_id: '5b2c1e8d-9f3a-4c7d-b6e1-0f8a3d2e5c7b',
-//     model_name: 'rubert-tiny',
-//     dimension: 312
-//   }
-// ];
-
 // Получение списка моделей
 app.get('/api/models', async (req, res) => {
   try {
-    // В реальном приложении:
+
     const models = await axios.get(`${EMBEDDING_SERVICE_URL}/models`);
     res.json(models.data);
-    
-    // res.json(AVAILABLE_MODELS);
+
   } catch (error) {
     handleProxyError(error, 'Models list', res);
   }
 });
-// До всех роутов!
-// Start server
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log('Configured services:');
