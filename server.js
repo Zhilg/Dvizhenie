@@ -16,14 +16,10 @@ const { decode } = require('iconv-lite'); // Добавляем библиоте
 const app = express();
 const PORT = 4000;
 const SHARED_DATA_PATH = "/app/shared_data";
-// Configuration
-const EMBEDDING_SERVICE_URL = 'http://embedding-service:8000';
-const NORMALIZATION_SERVICE_URL = 'http://normalize-service:5001';
-const SEMANTIC_SERVICE_URL = 'http://vbd-service:8080'; 
-// const EMBEDDING_SERVICE_URL = 'http://dvizhenie-task_1-3-1:3000/api';
-// const NORMALIZATION_SERVICE_URL = 'http://dvizhenie-task_1-3-1:3000/api';
-// const SEMANTIC_SERVICE_URL = 'http://dvizhenie-task_1-3-1:3000/api'; 
 
+const EMBEDDING_SERVICE_URL = 'http://back-service:3000';
+const NORMALIZATION_SERVICE_URL = 'http://back-service:3000';
+const SEMANTIC_SERVICE_URL = 'http://back-service:3000'; 
 
 // Middleware
 app.use(cors());
