@@ -193,7 +193,7 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
     // Отправляем запрос в VBD сервис
     const response = await axios.post(`${SEMANTIC_SERVICE_URL}/semantic/upload`, {}, {
       headers: {
-        'x-corpus-path': `${corpusId}`,
+        'x-corpus-path': `/shared_data/${corpusId}`,
         'x-model-id': modelId,
         'x-ttl-hours': ttlHours
       }

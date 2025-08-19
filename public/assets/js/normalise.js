@@ -1,10 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const DOCKER_SERVICE_URL = 'http://localhost:3000/api/normalize';
     const fileInput = document.getElementById('fileInput');
     const fileLabel = document.getElementById('fileLabel');
     const sourceText = document.getElementById('sourceText');
     const processBtn = document.getElementById('processBtn');
-    const resultDiv = document.getElementById('result');
     const errorDiv = document.getElementById('error');
     const comparisonDiv = document.getElementById('comparison');
     
@@ -88,8 +86,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 language,
                 normalized: normalizedText.substring(0, 100) + '...'
             });
-            
-            resultDiv.innerHTML = normalizedText.replace(/\n/g, '<br>');
             
             const dmp = new diff_match_patch();
             const diffs = dmp.diff_main(text, normalizedText);
