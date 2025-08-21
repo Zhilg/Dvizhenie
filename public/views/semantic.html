@@ -2,12 +2,11 @@
 <link rel="stylesheet" href="../assets/css/semantic_analysis.css">
 
 <div class="container mt-4">
-    <h1 class="mb-4">Семантический анализ документов</h1>
+    <h1 class="mb-4">Поиск документов по смысловой схожести</h1>
     
     <div class="border p-4 rounded bg-light mb-4">
         <!-- Блок загрузки документов -->
         <div class="mb-4">
-            <h3><i class="bi bi-upload"></i> Загрузка документов</h3>
             <div class="mb-3">
                 <label class="form-label fw-bold">Выберите модель:</label>
                 <select id="modelSelect" class="form-select">
@@ -15,7 +14,7 @@
                 </select>
             </div>
             <div class="mb-3">
-                <label class="form-label fw-bold">Выберите папку с документами:</label>
+                <label class="form-label fw-bold">Выберите папку с хранилищем документов:</label>
                 <div class="input-group">
                     <input type="file" id="folderInput" class="form-control" webkitdirectory directory multiple
                            style="display: none;">
@@ -28,11 +27,11 @@
                 <div class="form-text">Поддерживается в Chrome и Edge</div>
             </div>
             <div class="mb-3">
-                <label class="form-label fw-bold">TTL (часы):</label>
+                <label class="form-label fw-bold">Задайте время хранения корпуса текстов (в часах):</label>
                 <input type="number" id="ttlHours" class="form-control" placeholder="0 - не удалять">
             </div>
             <button id="uploadBtn" class="btn btn-primary">
-                <i class="bi bi-cloud-upload"></i> Загрузить документы
+                <i class="bi bi-cloud-upload"></i> Загрузить корпус текстов
             </button>
         </div>
         
