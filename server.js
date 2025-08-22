@@ -17,9 +17,9 @@ const app = express();
 const PORT = 4000;
 const SHARED_DATA_PATH = "/app/shared_data";
 
-const EMBEDDING_SERVICE_URL = 'http://back-service:3000';
-const NORMALIZATION_SERVICE_URL = 'http://back-service:3000';
-const SEMANTIC_SERVICE_URL = 'http://back-service:3000'; 
+const EMBEDDING_SERVICE_URL = 'http://back-service:3000/api';
+const NORMALIZATION_SERVICE_URL = 'http://back-service:3000/api';
+const SEMANTIC_SERVICE_URL = 'http://back-service:3000/api'; 
 
 // Middleware
 app.use(cors());
