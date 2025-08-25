@@ -204,6 +204,22 @@ button:hover {
   animation: fadeIn 0.4s ease-out forwards;
 }
 
+.home-btn {
+    background-color: var(--secondary-color);
+    color: black;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.home-btn:hover {
+    background-color: #1a252f;
+    color:white;
+}
+
 /* Адаптивность */
 @media (max-width: 768px) {
   body {

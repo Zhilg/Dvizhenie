@@ -214,7 +214,7 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
 // Проверка статуса задачи
 app.get('/api/jobs/:jobId', async (req, res) => {
   try {
-    const response = await axios.get(`${SEMANTIC_SERVICE_URL}/api/jobs/${req.params.jobId}`);
+    const response = await axios.get(`${SEMANTIC_SERVICE_URL}/jobs/${req.params.jobId}`);
     res.json(response.data);
   } catch (error) {
     console.error('Job status error:', error);
@@ -225,12 +225,9 @@ app.get('/api/jobs/:jobId', async (req, res) => {
   }
 });
 
-app.get('/api/results/:resultId', async (req, res) => {
-  try {
-    const resultId = req.params.resultId;
-    console.log(`Proxying to: ${SEMANTIC_SERVICE_URL}/result/${resultId}`);
-    
-    const response = await axios.get(`${SEMANTIC_SERVICE_URL}/result/${resultId}`);
+app.get('/api/result', async (req, res) => {
+  try {  
+    const response = await axios.get(req.headers['x-result-url']);
     res.json(response.data);
   } catch (error) {
     console.error('Results error:', error);
@@ -321,6 +318,51 @@ app.get('/api/models', async (req, res) => {
 
   } catch (error) {
     handleProxyError(error, 'Models list', res);
+  }
+});
+
+app.post('/api/clusterization', async (req, res) => {
+  try {
+    const modelId = req.headers['x-model-id'] || 'default-model';
+    const ttlHours = req.headers['x-ttl-hours'] || 0;
+    const corpusPath = req.headers['x-corpus-path'];
+
+    if (!corpusPath) {
+      return res.status(400).json({
+        error: 'Missing required header',
+        message: 'x-corpus-path header is required'
+      });
+    }
+
+    // Отправляем запрос в VBD сервис (аналогично semantic/upload)
+    const response = await axios.post(`${SEMANTIC_SERVICE_URL}/clusterization`, req.body, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-corpus-path': corpusPath,
+        'x-model-id': modelId,
+        'x-ttl-hours': ttlHours
+      }
+    });
+
+    res.status(202).json(response.data);
+
+  } catch (error) {
+    console.error('Clusterization error:', error);
+    
+    // Обрабатываем ошибки axios
+    if (error.response) {
+      // Сервер ответил с кодом ошибки
+      res.status(error.response.status).json({
+        error: 'Clusterization failed',
+        message: error.response.data?.message || error.message
+      });
+    } else {
+      // Другие ошибки (сеть, таймаут и т.д.)
+      res.status(500).json({
+        error: 'Clusterization failed',
+        message: error.message
+      });
+    }
   }
 });
 

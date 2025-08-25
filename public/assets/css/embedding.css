@@ -167,3 +167,19 @@ textarea.form-control:focus {
   padding: 2px 5px;
   border-radius: 3px;
 }
+
+.home-btn {
+    background-color: var(--secondary-color);
+    color: black;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.home-btn:hover {
+    background-color: #1a252f;
+    color:white;
+}
