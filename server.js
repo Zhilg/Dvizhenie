@@ -28,6 +28,27 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(express.text({ type: 'text/plain' })); 
 
+let jobsDB = {
+  jobs: []
+};
+
+function saveJobToDB(jobData) {
+  try {
+    // Добавляем timestamp если его нет
+    if (!jobData.created_at) {
+      jobData.created_at = new Date().toISOString();
+    }
+    
+    // Добавляем job в базу
+    jobsDB.jobs.push(jobData);
+    
+    console.log(`Job saved to DB: ${jobData.job_id} (type: ${jobData.type})`);
+    return true;
+  } catch (error) {
+    console.error('Error saving job to DB:', error);
+    return false;
+  }
+}
 
 // Proxy error handler
 const handleProxyError = (error, serviceName, res) => {
@@ -71,6 +92,14 @@ app.get('/semantic', (req, res) => {
 
 app.get('/clusterization', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'views', 'clusterization.html'))
+});
+
+app.get('/semantic/search/unstructured', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'views', 'semantic.html'))
+});
+
+app.get('/classification', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'views', 'classification.html'))
 });
 
 // API Proxy Routes
@@ -215,6 +244,7 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
 app.get('/api/jobs/:jobId', async (req, res) => {
   try {
     const response = await axios.get(`${SEMANTIC_SERVICE_URL}/jobs/${req.params.jobId}`);
+    // ОБНОВЛЯЕМ СТАТУС JOB В БАЗЕ ДАННЫХ    
     res.json(response.data);
   } catch (error) {
     console.error('Job status error:', error);
@@ -334,7 +364,6 @@ app.post('/api/clusterization', async (req, res) => {
       });
     }
 
-    // Отправляем запрос в VBD сервис (аналогично semantic/upload)
     const response = await axios.post(`${SEMANTIC_SERVICE_URL}/clusterization`, req.body, {
       headers: {
         'Content-Type': 'application/json',
@@ -344,25 +373,110 @@ app.post('/api/clusterization', async (req, res) => {
       }
     });
 
+    const jobData = {
+      job_id: response.data.job_id,
+      type: 'clusterization',
+      model_id: modelId,
+      corpus_path: corpusPath,
+      status: 'completed',
+      created_at: new Date().toISOString(),
+      estimated_time_min: response.data.estimated_time_min || null
+    };
+    
+    saveJobToDB(jobData);
+
     res.status(202).json(response.data);
+
 
   } catch (error) {
     console.error('Clusterization error:', error);
     
-    // Обрабатываем ошибки axios
     if (error.response) {
-      // Сервер ответил с кодом ошибки
       res.status(error.response.status).json({
         error: 'Clusterization failed',
         message: error.response.data?.message || error.message
       });
     } else {
-      // Другие ошибки (сеть, таймаут и т.д.)
       res.status(500).json({
         error: 'Clusterization failed',
         message: error.message
       });
     }
+  }
+});
+
+app.get('/api/clusterization/history', (req, res) => {
+  try {
+    console.log('GET /api/clusterization/history called');
+    
+    const { limit } = req.query;
+    
+    // Фильтруем только задачи кластеризации
+    let clusterJobs = jobsDB.jobs.filter(job => job.type === 'clusterization');
+    
+    // Сортируем по дате (новые сначала)
+    clusterJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    
+    // Лимитируем результаты
+    if (limit) {
+      const limitNum = parseInt(limit);
+      clusterJobs = clusterJobs.slice(0, limitNum);
+    }
+    
+    console.log(`Returning ${clusterJobs.length} clusterization jobs`);
+    res.json(clusterJobs);
+    
+  } catch (error) {
+    console.error('Error in /api/clusterization/history:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message
+    });
+  }
+});
+
+app.post('/api/classification', upload.array('files'), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    const modelId = req.headers['x-model-id'] || 'default-model';
+    const clusteringJobId = req.headers['x-clustering-job-id'];
+    const ttlHours = req.headers['x-ttl-hours'] || 0;
+    const corpusPath = `/shared_data/${req.corpusId}`;
+
+    if (!clusteringJobId) {
+      return res.status(400).json({ error: 'x-clustering-job-id header is required' });
+    }
+
+    // Отправляем запрос в бэкенд разработчика
+    const response = await axios.post(`${SEMANTIC_SERVICE_URL}/classification`, {}, {
+      headers: {
+        'x-corpus-path': corpusPath,
+        'x-model-id': modelId,
+        'x-clustering-job-id': clusteringJobId,
+        'x-ttl-hours': ttlHours,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    res.status(202).json(response.data);
+
+  } catch (error) {
+    console.error('Classification proxy error:', error);
+    
+    if (error.response?.status === 404) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: error.response.data?.message || 'Resource not found'
+      });
+    }
+    
+    res.status(500).json({
+      error: 'Classification failed',
+      message: error.message
+    });
   }
 });
 

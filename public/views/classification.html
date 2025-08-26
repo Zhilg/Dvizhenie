@@ -1,0 +1,92 @@
+<!-- public/task11.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Классификация текстов</title>
+    <link rel="stylesheet" href="../assets/css/classification.css">
+</head>
+<body>
+    <a href="http://localhost:4000" class="home-btn">🏠 Домой</a>
+    <div class="container">
+        <h1>Классификация текстов</h1>
+        
+        <div class="config-section">
+        <h3>🏷️ Настройки классификации</h3>
+        
+        <div class="config-group">
+            <span class="config-label">Модель классификации:</span>
+            <select id="modelSelect" class="config-input">
+                <option value="">Загрузка моделей...</option>
+            </select>
+            <button class="btn btn-small" onclick="loadModels()" title="Обновить список моделей">🔄</button>
+        </div>
+        <div class="form-group">
+            <label for="clusteringJobId">ID задачи кластеризации:</label>
+            <input type="text" id="clusteringJobId" placeholder="Введите ID кластеризации" required>
+            <small>Выберите из истории ниже или введите вручную</small>
+        </div>
+        <div class="config-group">
+            <span class="config-label">TTL Hours:</span>
+            <input type="number" id="ttlHours" class="config-input" value="24" min="0">
+        </div>
+
+        <div class="model-info" id="modelInfo" style="display: none;">
+            <h4>Информация о модели:</h4>
+            <div id="modelDetails"></div>
+        </div>
+    </div>
+        
+        <div class="upload-section">
+            <input type="file" id="fileInput" webkitdirectory directory multiple style="display: none;">
+            <button class="btn" onclick="selectFolder()">Выберите папку с текстами для классификации</button>
+            <button class="btn btn-secondary" onclick="startClassification()" id="startBtn">Запустить классификацию</button>
+            <p id="selectedFolder"></p>
+            <div id="status"></div>
+        </div>
+        
+        <div class="section">
+            <h3>📊 История задач кластеризации</h3>
+            <div id="jobHistory" class="job-history"></div>
+        </div>
+
+        <div class="history-section">
+            <h3>📊 История заданий</h3>
+            <div class="history-controls">
+                <button class="btn btn-secondary" onclick="loadJobHistory('clustering')">Кластеризация</button>
+                <button class="btn btn-secondary" onclick="loadJobHistory('classification')">Классификация</button>
+                <button class="btn btn-secondary" onclick="loadJobHistory('all')">Все</button>
+            </div>
+            <div id="jobHistory" class="job-history-list"></div>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+            </div>
+            <p>Обработка файлов... Пожалуйста, подождите.</p>
+            <p id="progressDetails"></p>
+        </div>
+
+        <div id="results" class="results">
+            <h2>Результаты классификации</h2>
+            <div class="table-container">
+                <table id="correspondenceTable">
+                    <thead>
+                        <tr>
+                            <th>Файл</th>
+                            <th colspan="5">Классы разработчика (топ-5)</th>
+                            <th colspan="5">Классы оболочки (топ-5)</th>
+                            <th>Совпадения</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript" src="../assets/js/classification.js"></script>
+</body>
+</html>

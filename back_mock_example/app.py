@@ -1094,6 +1094,11 @@ def get_job_status(job_id):
                 "status": "completed",
                 "result_url": f"http://back-service:3000/api/jobs/{job_id}/result"
             })
+        elif job['type'] == 'classification':
+            return jsonify({
+                "status": "completed",
+                "result_url": f"http://back-service:3000/api/jobs/{job_id}/result"
+            })
         else:
             return jsonify(error="Unknown job type"), 500
 
@@ -1104,12 +1109,10 @@ def get_job_result(job_id):
         return jsonify(error="Result not ready"), 404
     
     # Возвращаем результат в зависимости от типа задачи
-    if job['type'] == 'upload':
-        return jsonify(job['result'])
-    elif job['type'] == 'clusterisation':
-        return jsonify(job['result'])
-    else:
-        return jsonify(error="Unknown job type"), 500
+
+    return jsonify(job['result'])
+
+
 
 @app.route('/api/semantic/search', methods=['POST'])
 def semantic_search():
@@ -1164,6 +1167,134 @@ def clusterisation():
     return jsonify({
         "job_id": job_id,
         "estimated_time_min": 120
+    }), 202
+
+@app.route('/api/classification', methods=['POST'])
+def classification():
+    """Эндпоинт для классификации документов по существующим кластерам"""
+    if not request.content_type or 'application/json' not in request.content_type:
+        return jsonify(error="Invalid content type"), 400
+    
+    # Получаем параметры из запроса
+    corpus_path = request.headers.get('x-corpus-path')
+    model_id = request.headers.get('x-model-id')
+    
+    if not corpus_path or not model_id:
+        return jsonify(error="Missing required headers"), 400
+    
+    # Проверяем существование модели
+    model_exists = any(m['model_id'] == model_id for m in MOCK_MODELS)
+    if not model_exists:
+        return jsonify(error="Model not found"), 404
+    
+    # Создаем задание на классификацию
+    job_id = str(uuid.uuid4())
+    jobs_db[job_id] = {
+        'status': 'processing',
+        'type': 'classification',
+        'progress': 0,
+        'corpus_path': corpus_path,
+        'model_id': model_id,
+        'result': {
+            "folder": "C:/documents/new_documents",
+            "data": {
+                "id": "root",
+                "name": "Все кластеры",
+                "fileCount": 150,
+                "avgSimilarity": 0.78,
+                "children": [
+                    {
+                        "id": "cluster1",
+                        "name": "Технологии",
+                        "fileCount": 65,
+                        "avgSimilarity": 0.85,
+                        "similarityDistribution": [0.1, 0.15, 0.25, 0.3, 0.2],
+                        "files": [
+                            {"name": "new_ai_research.txt"},
+                            {"name": "tech_report.pdf"}
+                        ],
+                        "children": []
+                    },
+                    {
+                        "id": "cluster2", 
+                        "name": "Наука",
+                        "fileCount": 45,
+                        "avgSimilarity": 0.72,
+                        "similarityDistribution": [0.2, 0.25, 0.3, 0.15, 0.1],
+                        "files": [
+                            {"name": "physics_paper.txt"},
+                            {"name": "biology_study.pdf"}
+                        ],
+                        "children": []
+                    },
+                    {
+                        "id": "cluster3",
+                        "name": "Бизнес",
+                        "fileCount": 40,
+                        "avgSimilarity": 0.81,
+                        "similarityDistribution": [0.05, 0.1, 0.2, 0.3, 0.35],
+                        "files": [
+                            {"name": "market_analysis.docx"},
+                            {"name": "financial_report.pdf"}
+                        ],
+                        "children": []
+                    }
+                ]
+            },
+            "correspondence_table": {
+                "files": [
+                    {
+                        "f": "new_ai_research.txt",
+                        "d": [
+                            ["cluster1", 0.92],
+                            ["cluster2", 0.68],
+                            ["cluster3", 0.45],
+                            ["cluster4", 0.32],
+                            ["cluster5", 0.21]
+                        ]
+                    },
+                    {
+                        "f": "tech_report.pdf", 
+                        "d": [
+                            ["cluster1", 0.88],
+                            ["cluster3", 0.72],
+                            ["cluster2", 0.61],
+                            ["cluster6", 0.38],
+                            ["cluster7", 0.29]
+                        ]
+                    },
+                    {
+                        "f": "physics_paper.txt",
+                        "d": [
+                            ["cluster2", 0.95],
+                            ["cluster1", 0.63],
+                            ["cluster8", 0.42],
+                            ["cluster9", 0.31],
+                            ["cluster10", 0.24]
+                        ]
+                    }
+                ],
+                "cluster_names": {
+                    "cluster1": "Технологии",
+                    "cluster2": "Наука", 
+                    "cluster3": "Бизнес",
+                    "cluster4": "Искусство",
+                    "cluster5": "Спорт",
+                    "cluster6": "Медицина",
+                    "cluster7": "Образование",
+                    "cluster8": "Политика",
+                    "cluster9": "Экономика",
+                    "cluster10": "Путешествия"
+                }
+            },
+            "graphic_representation": "http://localhost:3000/api/visualization/graphic"
+        }
+    }
+    job_creation_time[job_id] = time.time()
+    
+    return jsonify({
+        "job_id": job_id,
+        "estimated_time_min": 45
     }), 202
 
 # Обработчики ошибок
