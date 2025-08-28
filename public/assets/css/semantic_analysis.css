@@ -1,4 +1,8 @@
-/* Основные стили */
+:root {
+    --primary-color: #3498db;
+    --secondary-color: #f8f9fa;
+}
+
 .container {
     max-width: 1200px;
 }
@@ -8,38 +12,34 @@ h1, h2, h3, h4 {
 }
 
 .bg-light {
-    background-color: #f8f9fa !important;
+    background-color: var(--secondary-color) !important;
 }
 
-/* Блоки с функционалом */
 .function-block {
-    border-left: 4px solid #3498db;
+    border-left: 4px solid var(--primary-color);
     padding-left: 15px;
     margin-bottom: 30px;
 }
 
-/* Кнопки */
 .btn-primary {
-    background-color: #3498db;
-    border-color: #3498db;
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
 }
 
 .btn-outline-secondary {
     border-color: #ced4da;
 }
 
-/* Формы */
 .form-control, .form-select {
     border-radius: 0.25rem;
     border: 1px solid #ced4da;
 }
 
 .form-control:focus, .form-select:focus {
-    border-color: #3498db;
+    border-color: var(--primary-color);
     box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
 }
 
-/* Результаты */
 #resultsContainer {
     background-color: white;
     border-radius: 0.5rem;
@@ -51,7 +51,6 @@ h1, h2, h3, h4 {
     border-radius: 0.5rem;
 }
 
-/* Список результатов */
 .list-group-item {
     border-radius: 0.5rem !important;
     margin-bottom: 10px;
@@ -63,7 +62,6 @@ h1, h2, h3, h4 {
     box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
 }
 
-/* Иконки */
 .bi {
     margin-right: 8px;
 }
@@ -77,14 +75,31 @@ h1, h2, h3, h4 {
     display: inline-flex;
     align-items: center;
     gap: 5px;
+    margin-bottom: 20px;
 }
 
 .home-btn:hover {
     background-color: #1a252f;
-    color:white;
+    color: white;
 }
 
-/* Адаптивность */
+.upload-section {
+    display: none;
+    margin-top: 20px;
+    padding: 20px;
+    border: 1px dashed #dee2e6;
+    border-radius: 0.5rem;
+    background-color: #f8f9fa;
+}
+
+.no-corpus-message {
+    text-align: center;
+    padding: 40px;
+    background-color: #f8f9fa;
+    border-radius: 0.5rem;
+    margin-bottom: 20px;
+}
+
 @media (max-width: 768px) {
     .btn {
         width: 100%;

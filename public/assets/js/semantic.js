@@ -5,11 +5,57 @@ let currentJobId = null;
 let currentCorpusId = null;
 let checkStatusInterval = null;
 let isUploading = false;
+let corpusHistory = [];
+let availableModels = []; // Список доступных моделей
 
-// Инициализация - загрузка моделей
+// Инициализация
 document.addEventListener('DOMContentLoaded', async () => {
     await loadModels();
+    loadCorpusHistory();
+    updateUI();
+    
+    // Обработчики событий
+    document.getElementById('uploadBtn').addEventListener('click', uploadDocuments);
+    document.getElementById('searchBtn').addEventListener('click', searchDocuments);
+    document.getElementById('showUploadBtn').addEventListener('click', showUploadSection);
+    document.getElementById('hideUploadBtn').addEventListener('click', hideUploadSection);
+    document.getElementById('addCorpusBtn').addEventListener('click', showUploadSection);
+    document.getElementById('folderInput').addEventListener('change', function() {
+        document.getElementById('folderName').value = this.files.length > 0 ? 
+            `${this.files.length} файлов выбрано` : 'Папка не выбрана';
+    });
+    document.getElementById('corpusId').addEventListener('change', updateCorpusInfo);
+    document.getElementById('showHistoryBtn').addEventListener('click', showHistoryModal);
 });
+
+// Обновление интерфейса в зависимости от наличия корпусов
+function updateUI() {
+    corpusHistory = JSON.parse(localStorage.getItem('corpusHistory')) || [];
+    
+    if (corpusHistory.length > 0) {
+        document.getElementById('noCorpusMessage').style.display = 'none';
+        document.getElementById('searchSection').style.display = 'block';
+        loadCorpusDropdown();
+    } else {
+        document.getElementById('noCorpusMessage').style.display = 'block';
+        document.getElementById('searchSection').style.display = 'none';
+    }
+    
+    document.getElementById('uploadSection').style.display = 'none';
+}
+
+// Показать секцию загрузки
+function showUploadSection() {
+    document.getElementById('uploadSection').style.display = 'block';
+    document.getElementById('searchSection').style.display = 'none';
+    document.getElementById('noCorpusMessage').style.display = 'none';
+}
+
+// Скрыть секцию загрузки
+function hideUploadSection() {
+    document.getElementById('uploadSection').style.display = 'none';
+    updateUI();
+}
 
 // Загрузка списка моделей
 async function loadModels() {
@@ -17,26 +63,31 @@ async function loadModels() {
         const response = await fetch(`${BASE_URL}/models`);
         if (!response.ok) throw new Error(await response.text());
         
-        const models = await response.json();
+        availableModels = await response.json();
         const modelSelect = document.getElementById('modelSelect');
-        const searchModelSelect = document.getElementById('searchModelSelect');
         
         // Очищаем и добавляем модели
         modelSelect.innerHTML = '<option value="">-- Выберите модель --</option>';
-        searchModelSelect.innerHTML = '<option value="">-- Выберите модель --</option>';
         
-        models.forEach(model => {
+        availableModels.forEach(model => {
             const option = document.createElement('option');
             option.value = model.model_id;
             option.textContent = model.model_name || model.model_id;
-            
-            modelSelect.appendChild(option.cloneNode(true));
-            searchModelSelect.appendChild(option);
+            if (model.dimension) {
+                option.textContent += ` (${model.dimension})`;
+            }
+            modelSelect.appendChild(option);
         });
     } catch (error) {
         console.error("Error loading models:", error);
         showError('Ошибка загрузки моделей: ' + error.message);
     }
+}
+
+// Получение названия модели по ID
+function getModelNameById(modelId) {
+    const model = availableModels.find(m => m.model_id === modelId);
+    return model ? (model.model_name || model.model_id) : modelId;
 }
 
 // Загрузка документов
@@ -103,6 +154,7 @@ async function uploadDocuments() {
     }
 }
 
+// Проверка статуса загрузки
 async function checkUploadStatus() {
     if (!currentJobId) return;
     
@@ -153,14 +205,16 @@ function resetUploadButton() {
     isUploading = false;
 }
 
+// Получение результатов загрузки
 async function getUploadResults(resultUrl) {
+    try {
         // Делаем запрос на URL результата
         const response = await fetch("/api/result", {
-        method: "GET",
-        headers: {
-            "Content-Type": "application/json",
-            "x-result-url": resultUrl
-        },
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                "x-result-url": resultUrl
+            },
         });
 
         if (!response.ok) throw new Error(await response.text());
@@ -168,48 +222,41 @@ async function getUploadResults(resultUrl) {
         const results = await response.json();
         
         currentCorpusId = results.corpus_id;
-        const corpusSelect = document.getElementById('corpusId');
-        
-        // Добавляем новый корпус в выпадающий список
-        const option = document.createElement('option');
-        option.value = results.corpus_id;
-        option.textContent = `${results.corpus_id} (${results.file_count} файлов)`;
-        corpusSelect.appendChild(option);
-        corpusSelect.value = results.corpus_id;
+        const modelId = document.getElementById('modelSelect').value;
         
         // Сохраняем в историю
-        saveCorpusId(results.corpus_id, document.getElementById('modelSelect').value, results.file_count);
+        saveCorpusId(results.corpus_id, modelId, results.file_count);
         
         // Показываем результаты
         document.getElementById('uploadResults').innerHTML = `
             <div class="alert alert-success">
                 <h4 class="alert-heading">✅ Загрузка завершена</h4>
                 <p><strong>ID корпуса:</strong> ${results.corpus_id}</p>
+                <p><strong>Модель:</strong> ${getModelNameById(modelId)}</p>
                 <p><strong>Файлов:</strong> ${results.file_count}</p>
                 <p><strong>Размер индекса:</strong> ${results.index_stats?.total_size_gb || 'N/A'} GB</p>
                 <p class="mb-0"><small>Корпус успешно загружен и проиндексирован</small></p>
             </div>
         `;
-    
+        
+        // Обновляем интерфейс
+        updateUI();
+        
+    } catch (error) {
+        console.error("Error getting upload results:", error);
+        showError('Ошибка получения результатов загрузки: ' + error.message);
+    }
 }
-
-// Остальные функции остаются без изменений
-document.getElementById('showHistoryBtn').addEventListener('click', function() {
-    loadCorpusHistory();
-    const modal = new bootstrap.Modal(document.getElementById('historyModal'));
-    modal.show();
-});
 
 // Поиск по корпусу
 async function searchDocuments() {
     const corpusId = document.getElementById('corpusId').value;
     const searchQuery = document.getElementById('searchQuery');
-    const searchModelSelect = document.getElementById('searchModelSelect');
     const resultAmount = document.getElementById('resultAmount').value;
     const searchBtn = document.getElementById('searchBtn');
     
     if (!corpusId) {
-        showError('Пожалуйста, введите ID корпуса');
+        showError('Пожалуйста, выберите корпус');
         return;
     }
 
@@ -217,9 +264,13 @@ async function searchDocuments() {
         showError('Пожалуйста, введите поисковый запрос');
         return;
     }
+
+    // Получаем информацию о модели из истории корпусов
+    const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
+    const corpusInfo = history.find(item => item.id === corpusId);
     
-    if (!searchModelSelect.value) {
-        showError('Пожалуйста, выберите модель');
+    if (!corpusInfo || !corpusInfo.model) {
+        showError('Не удалось определить модель для выбранного корпуса');
         return;
     }
 
@@ -231,8 +282,8 @@ async function searchDocuments() {
             headers: {
                 'Content-Type': 'text/plain; charset=utf-8',
                 'x-corpus-id': corpusId,
-                'x-result-amount': resultAmount,
-                'x-model-id': searchModelSelect.value
+                'x-model-id': corpusInfo.model, // Добавляем идентификатор модели
+                'x-result-amount': resultAmount
             },
             body: searchQuery.value
         });
@@ -289,38 +340,34 @@ function displaySearchResults(results) {
     searchResults.innerHTML = html;
     searchResults.style.display = 'block';
     document.getElementById('resultsContainer').style.display = 'block';
-}
-
-// Вспомогательные функции
-function showLoading(button) {
-    button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Обработка...';
-    button.disabled = true;
-}
-
-function resetButton(button, originalText) {
-    button.innerHTML = originalText;
-    button.disabled = false;
-}
-
-function showError(message) {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = 'alert alert-danger';
-    alertDiv.textContent = message;
     
-    const container = document.getElementById('resultsContainer');
-    container.insertBefore(alertDiv, container.firstChild);
-    container.style.display = 'block';
-    
-    setTimeout(() => alertDiv.remove(), 5000);
+    // Автоматическая прокрутка к результатам
+    document.getElementById('resultsContainer').scrollIntoView({ behavior: 'smooth' });
 }
 
-// Обработчики событий
-document.getElementById('uploadBtn').addEventListener('click', uploadDocuments);
-document.getElementById('searchBtn').addEventListener('click', searchDocuments);
-document.getElementById('folderInput').addEventListener('change', function() {
-    document.getElementById('folderName').value = this.files.length > 0 ? 
-        `${this.files.length} файлов выбрано` : 'Папка не выбрана';
-});
+// Обновление информации о выбранном корпусе
+function updateCorpusInfo() {
+    const corpusId = document.getElementById('corpusId').value;
+    const corpusInfoElement = document.getElementById('corpusInfo');
+    
+    if (!corpusId) {
+        corpusInfoElement.textContent = '';
+        return;
+    }
+    
+    const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
+    const corpus = history.find(item => item.id === corpusId);
+    
+    if (corpus) {
+        corpusInfoElement.innerHTML = `
+            <strong>Модель:</strong> ${getModelNameById(corpus.model) || 'неизвестна'} | 
+            <strong>Файлов:</strong> ${corpus.files || 'неизвестно'} | 
+            <strong>Загружен:</strong> ${new Date(corpus.date).toLocaleString()}
+        `;
+    } else {
+        corpusInfoElement.textContent = 'Информация о корпусе недоступна';
+    }
+}
 
 // Функции для работы с историей
 function saveCorpusId(corpusId, modelId = null, fileCount = null) {
@@ -346,12 +393,11 @@ function saveCorpusId(corpusId, modelId = null, fileCount = null) {
 }
 
 function loadCorpusHistory() {
-    const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
-    updateHistoryModal(history);
+    return JSON.parse(localStorage.getItem('corpusHistory')) || [];
 }
 
 function loadCorpusDropdown() {
-    const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
+    const history = loadCorpusHistory();
     const corpusSelect = document.getElementById('corpusId');
     
     const currentValue = corpusSelect.value;
@@ -360,59 +406,107 @@ function loadCorpusDropdown() {
     history.forEach(corpus => {
         const option = document.createElement('option');
         option.value = corpus.id;
-        option.textContent = `${corpus.id} (модель: ${corpus.model || 'неизвестна'}, файлов: ${corpus.files || '?'})`;
+        option.textContent = `${corpus.id} (модель: ${getModelNameById(corpus.model) || 'неизвестна'}, файлов: ${corpus.files || '?'})`;
         corpusSelect.appendChild(option);
     });
     
     if (currentValue && history.some(c => c.id === currentValue)) {
         corpusSelect.value = currentValue;
+        updateCorpusInfo();
     }
 }
 
-function updateHistoryModal(history) {
+function showHistoryModal() {
+    const history = loadCorpusHistory();
     const modalBody = document.getElementById('historyModalBody');
     
     if (history.length === 0) {
         modalBody.innerHTML = '<p>История поиска пуста</p>';
-        return;
+    } else {
+        modalBody.innerHTML = `
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>ID корпуса</th>
+                            <th>Модель</th>
+                            <th>Файлов</th>
+                            <th>Дата</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${history.map(corpus => `
+                            <tr>
+                                <td><code>${corpus.id}</code></td>
+                                <td>${getModelNameById(corpus.model) || 'неизвестна'}</td>
+                                <td>${corpus.files || 'неизвестно'}</td>
+                                <td>${new Date(corpus.date).toLocaleString()}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary use-corpus-btn" 
+                                        data-id="${corpus.id}">
+                                        Использовать
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        document.querySelectorAll('.use-corpus-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.getElementById('corpusId').value = this.getAttribute('data-id');
+                bootstrap.Modal.getInstance(document.getElementById('historyModal')).hide();
+                updateCorpusInfo();
+            });
+        });
     }
     
-    modalBody.innerHTML = `
-        <div class="table-responsive">
-            <table class="table table-sm">
-                <thead>
-                    <tr>
-                        <th>ID корпуса</th>
-                        <th>Модель</th>
-                        <th>Файлов</th>
-                        <th>Дата</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${history.map(corpus => `
-                        <tr>
-                            <td><code>${corpus.id}</code></td>
-                            <td>${corpus.model || 'неизвестна'}</td>
-                            <td>${corpus.files || 'неизвестно'}</td>
-                            <td>${new Date(corpus.date).toLocaleString()}</td>
-                            <td>
-                                <button class="btn btn-sm btn-outline-primary use-corpus-btn" 
-                                    data-id="${corpus.id}">
-                                    Использовать
-                                </button>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
+    // Показываем модальное окно
+    const modal = new bootstrap.Modal(document.getElementById('historyModal'));
+    modal.show();
+}
+
+// Вспомогательные функции
+function showLoading(button) {
+    button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Обработка...';
+    button.disabled = true;
+}
+
+function resetButton(button, originalText) {
+    button.innerHTML = originalText;
+    button.disabled = false;
+}
+
+function showError(message) {
+    // Создаем или находим контейнер для ошибок
+    let errorContainer = document.getElementById('errorContainer');
+    if (!errorContainer) {
+        errorContainer = document.createElement('div');
+        errorContainer.id = 'errorContainer';
+        errorContainer.className = 'position-fixed top-0 end-0 p-3';
+        errorContainer.style.zIndex = '9999';
+        document.body.appendChild(errorContainer);
+    }
+    
+    // Создаем элемент алерта
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
     
-    document.querySelectorAll('.use-corpus-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.getElementById('corpusId').value = this.getAttribute('data-id');
-            bootstrap.Modal.getInstance(document.getElementById('historyModal')).hide();
-        });
-    });
+    // Добавляем алерт в контейнер
+    errorContainer.appendChild(alertDiv);
+    
+    // Удаляем алерт через 5 секунд
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.classList.remove('show');
+            setTimeout(() => alertDiv.remove(), 150);
+        }
+    }, 5000);
 }

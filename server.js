@@ -116,7 +116,6 @@ app.post('/api/normalize', async (req, res) => {
         'Content-Type': 'text/plain',
         'Accept': 'text/plain'
       },
-      timeout: 5000,
       responseType: 'text'
     });
     
@@ -179,7 +178,6 @@ async function getEmbedding(text, modelId) {
       'Content-Type': 'text/plain',
       'x-model-id': modelId
     },
-    timeout: 10000
   });
   return response.data.embeddings;
 }

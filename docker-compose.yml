@@ -7,7 +7,13 @@ services:
       - ./shared_data:/shared_data
     networks:
       - new_network
-
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
   dvizhenie:
     image: dvizhenie
     ports:

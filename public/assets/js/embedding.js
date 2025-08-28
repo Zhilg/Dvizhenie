@@ -19,8 +19,6 @@ const resultsContainer = document.getElementById('vector-results');
 
 // Event listeners
 fileUpload.addEventListener('change', handleFileUpload);
-processFileBtn.addEventListener('click', processFile);
-saveChangesBtn.addEventListener('click', saveModifiedText);
 checkSynonymyBtn.addEventListener('click', checkTextSimilarity);
 
 // Show selected file name
@@ -64,38 +62,6 @@ function readFileContent(file) {
     });
 }
 
-// Process file (mock function)
-function processFile() {
-    if (!originalText) {
-        alert('Пожалуйста, загрузите файл сначала');
-        return;
-    }
-    
-    // In a real app, you would send this to your backend
-    console.log('Processing file:', filePath);
-    alert('Файл успешно обработан');
-}
-
-// Save modified text
-function saveModifiedText() {
-    modifiedText = modifiedTextArea.value;
-    
-    if (!modifiedText) {
-        alert('Пожалуйста, введите модифицированный текст');
-        return;
-    }
-    
-    if (!filePath) {
-        alert('Пожалуйста, загрузите файл сначала');
-        return;
-    }
-    
-    // In a real app, you would send this to your backend for saving
-    const fileName = filePath.split('/').pop();
-    modifiedPath = `uploads/modified_${fileName}`;
-    console.log('Modified text saved to:', modifiedPath);
-    alert('Изменения успешно сохранены');
-}
 // Функция для расчета косинусной близости
 function calculateCosineSimilarity(vecA, vecB) {
     if (vecA.length !== vecB.length) {
@@ -141,8 +107,8 @@ async function checkTextSimilarity() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        text1: originalText,
-        text2: modifiedText,
+        text1: originalTextArea.value,
+        text2: modifiedTextArea.value,
         modelId: currentModelId // Можно выбрать из списка моделей
       })
     });
@@ -164,6 +130,10 @@ async function checkTextSimilarity() {
     };
 
     displayResults(displayData);
+    document.getElementById('vector-results').scrollIntoView({
+    behavior: 'smooth',
+    block: 'end'
+  });
 
   } catch (error) {
     console.error('Ошибка сравнения:', error);
