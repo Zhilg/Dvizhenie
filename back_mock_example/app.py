@@ -960,7 +960,282 @@ MOCK_CLUSTER_RESULT = {
                 "avgSimilarity": 0.87,
                 "similarityDistribution": [0, 0.1, 0.2, 0.3, 0.4],
                 "files": [{"name": "ai_research.txt"}],
-                "children": []
+                "children": [
+                    {
+                        "id": "cluster1_1",
+                        "name": "Искусственный интеллект",
+                        "fileCount": 4580,
+                        "avgSimilarity": 0.91,
+                        "files": [{"name": "neural_networks.pdf"}],
+                        "children": [
+                            {
+                                "id": "cluster1_1_1",
+                                "name": "Машинное обучение",
+                                "fileCount": 2345,
+                                "avgSimilarity": 0.94,
+                                "files": [{"name": "ml_algorithms.docx"}],
+                                "children": [
+                                    {
+                                        "id": "cluster1_1_1_1",
+                                        "name": "Глубокое обучение",
+                                        "fileCount": 1234,
+                                        "avgSimilarity": 0.96,
+                                        "files": [{"name": "deep_learning_frameworks.pdf"}],
+                                        "children": [
+                                            {
+                                        "id": "cluster1_1_1_1_1",
+                                        "name": "Глубокое обучение 2",
+                                        "fileCount": 1234,
+                                        "avgSimilarity": 0.96,
+                                        "files": [{"name": "deep_learning_frameworks.pdf"}],
+                                        "children": [
+                                            {
+                                        "id": "cluster1_1_1_1_1_1",
+                                        "name": "Глубокое обучение 3",
+                                        "fileCount": 1234,
+                                        "avgSimilarity": 0.96,
+                                        "files": [{"name": "deep_learning_frameworks.pdf"}],
+                                        "children": [
+                                            
+                                        ]
+                                    },
+                                        ]
+                                    },
+                                        ]
+                                    },
+                                    {
+                                        "id": "cluster1_1_1_2",
+                                        "name": "Обучение с подкреплением",
+                                        "fileCount": 876,
+                                        "avgSimilarity": 0.93,
+                                        "files": [{"name": "reinforcement_learning.md"}],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "cluster1_1_1_3",
+                                        "name": "Обработка естественного языка",
+                                        "fileCount": 235,
+                                        "avgSimilarity": 0.95,
+                                        "files": [{"name": "nlp_models.txt"}],
+                                        "children": []
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "cluster1_1_2",
+                                "name": "Компьютерное зрение",
+                                "fileCount": 1567,
+                                "avgSimilarity": 0.89,
+                                "files": [{"name": "image_recognition.pdf"}],
+                                "children": [
+                                    {
+                                        "id": "cluster1_1_2_1",
+                                        "name": "Распознавание объектов",
+                                        "fileCount": 789,
+                                        "avgSimilarity": 0.91,
+                                        "files": [{"name": "object_detection.docx"}],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "cluster1_1_2_2",
+                                        "name": "Сегментация изображений",
+                                        "fileCount": 543,
+                                        "avgSimilarity": 0.88,
+                                        "files": [{"name": "image_segmentation.pdf"}],
+                                        "children": []
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "cluster1_2",
+                        "name": "Кибербезопасность",
+                        "fileCount": 3120,
+                        "avgSimilarity": 0.85,
+                        "files": [{"name": "security_protocols.docx"}],
+                        "children": [
+                            {
+                                "id": "cluster1_2_1",
+                                "name": "Сетевая безопасность",
+                                "fileCount": 1456,
+                                "avgSimilarity": 0.87,
+                                "files": [{"name": "network_security.pdf"}],
+                                "children": [
+                                    {
+                                        "id": "cluster1_2_1_1",
+                                        "name": "Firewall",
+                                        "fileCount": 678,
+                                        "avgSimilarity": 0.89,
+                                        "files": [{"name": "firewall_config.docx"}],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "cluster1_2_1_2",
+                                        "name": "VPN",
+                                        "fileCount": 432,
+                                        "avgSimilarity": 0.86,
+                                        "files": [{"name": "vpn_protocols.pdf"}],
+                                        "children": []
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "cluster1_2_2",
+                                "name": "Криптография",
+                                "fileCount": 987,
+                                "avgSimilarity": 0.83,
+                                "files": [{"name": "encryption_methods.docx"}],
+                                "children": [
+                                    {
+                                        "id": "cluster1_2_2_1",
+                                        "name": "Асимметричное шифрование",
+                                        "fileCount": 456,
+                                        "avgSimilarity": 0.85,
+                                        "files": [{"name": "rsa_algorithm.pdf"}],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "cluster1_2_2_2",
+                                        "name": "Хеширование",
+                                        "fileCount": 321,
+                                        "avgSimilarity": 0.82,
+                                        "files": [{"name": "hash_functions.docx"}],
+                                        "children": []
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "cluster2",
+                "name": "Финансы",
+                "fileCount": 8765,
+                "avgSimilarity": 0.79,
+                "similarityDistribution": [0.1, 0.2, 0.3, 0.4, 0.5],
+                "files": [{"name": "market_analysis.pdf"}],
+                "children": [
+                    {
+                        "id": "cluster2_1",
+                        "name": "Инвестиции",
+                        "fileCount": 4321,
+                        "avgSimilarity": 0.83,
+                        "files": [{"name": "stock_portfolio.xlsx"}],
+                        "children": [
+                            {
+                                "id": "cluster2_1_1",
+                                "name": "Акции",
+                                "fileCount": 1987,
+                                "avgSimilarity": 0.85,
+                                "files": [{"name": "stock_analysis.pdf"}],
+                                "children": [
+                                    {
+                                        "id": "cluster2_1_1_1",
+                                        "name": "Голубые фишки",
+                                        "fileCount": 876,
+                                        "avgSimilarity": 0.87,
+                                        "files": [{"name": "blue_chips.docx"}],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "cluster2_1_1_2",
+                                        "name": "Ростковые акции",
+                                        "fileCount": 543,
+                                        "avgSimilarity": 0.84,
+                                        "files": [{"name": "growth_stocks.pdf"}],
+                                        "children": []
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "cluster2_1_2",
+                                "name": "Облигации",
+                                "fileCount": 1234,
+                                "avgSimilarity": 0.81,
+                                "files": [{"name": "bonds_analysis.docx"}],
+                                "children": [
+                                    {
+                                        "id": "cluster2_1_2_1",
+                                        "name": "Государственные",
+                                        "fileCount": 678,
+                                        "avgSimilarity": 0.83,
+                                        "files": [{"name": "government_bonds.pdf"}],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "cluster2_1_2_2",
+                                        "name": "Корпоративные",
+                                        "fileCount": 456,
+                                        "avgSimilarity": 0.79,
+                                        "files": [{"name": "corporate_bonds.docx"}],
+                                        "children": []
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "cluster2_2",
+                        "name": "Бухгалтерия",
+                        "fileCount": 2444,
+                        "avgSimilarity": 0.76,
+                        "files": [{"name": "annual_report.pdf"}],
+                        "children": [
+                            {
+                                "id": "cluster2_2_1",
+                                "name": "Налоги",
+                                "fileCount": 1123,
+                                "avgSimilarity": 0.78,
+                                "files": [{"name": "tax_calculation.xlsx"}],
+                                "children": [
+                                    {
+                                        "id": "cluster2_2_1_1",
+                                        "name": "НДС",
+                                        "fileCount": 567,
+                                        "avgSimilarity": 0.80,
+                                        "files": [{"name": "vat_report.pdf"}],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "cluster2_2_1_2",
+                                        "name": "Налог на прибыль",
+                                        "fileCount": 456,
+                                        "avgSimilarity": 0.77,
+                                        "files": [{"name": "profit_tax.docx"}],
+                                        "children": []
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "cluster2_2_2",
+                                "name": "Отчетность",
+                                "fileCount": 876,
+                                "avgSimilarity": 0.74,
+                                "files": [{"name": "financial_statements.pdf"}],
+                                "children": [
+                                    {
+                                        "id": "cluster2_2_2_1",
+                                        "name": "Баланс",
+                                        "fileCount": 432,
+                                        "avgSimilarity": 0.76,
+                                        "files": [{"name": "balance_sheet.xlsx"}],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "cluster2_2_2_2",
+                                        "name": "ОПУ",
+                                        "fileCount": 321,
+                                        "avgSimilarity": 0.73,
+                                        "files": [{"name": "income_statement.pdf"}],
+                                        "children": []
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
             }
         ]
     },
@@ -968,7 +1243,6 @@ MOCK_CLUSTER_RESULT = {
     "planetar_representation": "http://localhost:3000/api/visualization/planetar",
     "drill-down_representation": "http://localhost:3000/api/visualization/drilldown"
 }
-
 # Статические эндпоинты для визуализации
 @app.route('/api/visualization/graphic', methods=['GET'])
 def graphic_visualization():

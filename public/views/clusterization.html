@@ -43,8 +43,18 @@
             
             <div class="control-group">
                 <label>Кластеры:</label>
-                <div id="clusterTree" class="cluster-tree">
-                    <!-- Дерево кластеров будет сгенерировано здесь -->
+                <div class="cluster-tree-wrapper">
+                    <div class="tree-controls">
+                        <button class="tree-btn" onclick="expandAll()">📂 Развернуть все</button>
+                        <button class="tree-btn" onclick="collapseAll()">📁 Свернуть все</button>
+                        <button class="tree-btn" onclick="toggleCompactMode()">🔍 Компактно</button>
+                    </div>
+                    <div class="cluster-tree-container">
+                        <div id="clusterTree" class="cluster-tree">
+                            <!-- Дерево кластеров будет сгенерировано здесь -->
+                        </div>
+                    </div>
+                    <div class="scroll-indicator" id="scrollIndicator"></div>
                 </div>
             </div>
         </aside>
