@@ -149,11 +149,14 @@ app.post('/api/similarity', express.json(), async (req, res) => {
     });
 
     // Параллельно получаем эмбеддинги
-    const [embedding1, embedding2] = await Promise.all([
+    const [result1, result2] = await Promise.all([
       getEmbedding(text1, modelId),
       getEmbedding(text2, modelId)
     ]);
-
+    const embedding1 = result1.embeddings;
+    const dimension1 = result1.dimension;
+    const embedding2 = result2.embeddings;
+    const dimension2 = result2.dimension;
     // Рассчитываем метрики
     const cosSim = cosineSimilarity(embedding1, embedding2);
     const angularDist = Math.acos(Math.min(Math.max(cosSim, -1), 1));
@@ -162,7 +165,8 @@ app.post('/api/similarity', express.json(), async (req, res) => {
       cosine_similarity: cosSim,
       angular_similarity_radians: angularDist,
       model_used: modelId,
-      embeddings: [embedding1, embedding2] // Опционально, если нужны клиенту
+      embeddings: [embedding1, embedding2], // Опционально, если нужны клиенту
+      dimension: dimension1
     });
 
   } catch (error) {
@@ -179,7 +183,7 @@ async function getEmbedding(text, modelId) {
       'x-model-id': modelId
     },
   });
-  return response.data.embeddings;
+  return response.data;
 }
 
 const storage = multer.diskStorage({

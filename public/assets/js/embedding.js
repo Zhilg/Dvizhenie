@@ -7,7 +7,8 @@ let filePath = '';
 let modifiedPath = '';
 let availableModels = [];
 let currentModelId = '';
-
+let startTime = '';
+let endTime = '';
 // DOM elements
 const fileUpload = document.getElementById('file-upload');
 const originalTextArea = document.getElementById('originalText');
@@ -16,6 +17,7 @@ const processFileBtn = document.getElementById('process-file');
 const saveChangesBtn = document.getElementById('save-changes');
 const checkSynonymyBtn = document.getElementById('check-synonymy');
 const resultsContainer = document.getElementById('vector-results');
+const vectorDim = document.getElementById('vector-dimension');
 
 // Event listeners
 fileUpload.addEventListener('change', handleFileUpload);
@@ -102,7 +104,7 @@ async function checkTextSimilarity() {
   try {
     checkSynonymyBtn.disabled = true;
     checkSynonymyBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Обработка...';
-
+    startTime = performance.now();
     const response = await fetch('/api/similarity', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -128,7 +130,7 @@ async function checkTextSimilarity() {
       embedding2: embedding2,
       similarity: cosineSimilarity
     };
-
+    endTime = performance.now();
     displayResults(displayData);
     document.getElementById('vector-results').scrollIntoView({
     behavior: 'smooth',
@@ -209,7 +211,7 @@ function updateModelInfo() {
 }
 
 function displayResults(results) {
-    const startTime = performance.now();
+    
     const vectorPairs = [];
     
     // Create vector pairs for display
@@ -294,11 +296,11 @@ function displayResults(results) {
     if (resultsContainer) {
         resultsContainer.style.display = 'block';
     }
-
+    vectorDim.textContent = results.dimension;
     // Отображаем время выполнения
     const executionTimeElement = document.getElementById('execution-time');
     if (executionTimeElement) {
-        const endTime = performance.now();
+        
         executionTimeElement.textContent = `${(endTime - startTime).toFixed(2)} мс`;
     }
 }
