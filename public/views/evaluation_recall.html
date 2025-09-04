@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Оценка полноты классификации - Задача 14</title>
+    <link rel="stylesheet" href="/assets/css/evaluation_recall.css">
+</head>
+<body>
+    <a href="http://localhost:4000" class="home-btn">🏠 Домой</a>
+    <div class="container">
+        <h1>🎯 Оценка полноты классификации</h1>
+        <p class="subtitle">Задача 14: Обеспечение полноты поискового отклика ≥ 0.8</p>
+        
+        <div class="config-section">
+            <h3>⚙️ Настройки оценки</h3>
+            
+            <div class="config-group">
+                <span class="config-label">ID задания классификации:</span>
+                <input type="text" id="classificationJobId" class="config-input" placeholder="Введите ID задания">
+                <button class="btn btn-small" onclick="loadClassificationHistory()" title="Выбрать из истории">📋</button>
+            </div>
+            
+            <div class="config-group">
+                <span class="config-label">Тип классификации:</span>
+                <select id="evaluationType" class="config-input">
+                    <option value="cluster">Кластерная (Задача 11)</option>
+                    <option value="grnti">ГРНТИ (Задача 12)</option>
+                </select>
+            </div>
+            
+            <div class="config-group">
+                <span class="config-label">Порог полноты:</span>
+                <input type="number" id="recallThreshold" class="config-input" value="0.8" min="0" max="1" step="0.01">
+            </div>
+            
+            <button class="btn btn-primary" onclick="evaluateRecall()" id="evaluateBtn">
+                📊 Запустить оценку полноты
+            </button>
+        </div>
+        
+        <div id="status" class="status-container"></div>
+        
+        <div class="history-section">
+            <h3>📋 История заданий классификации</h3>
+            <div class="history-controls">
+                <button class="btn btn-secondary" onclick="loadClassificationHistory('cluster')">Кластерная</button>
+                <button class="btn btn-secondary" onclick="loadClassificationHistory('grnti')">ГРНТИ</button>
+                <button class="btn btn-secondary" onclick="loadClassificationHistory('all')">Все</button>
+            </div>
+            <div id="classificationHistory" class="job-history-list"></div>
+        </div>
+        
+        <div id="results" class="results" style="display: none;">
+            <h2>📈 Результаты оценки полноты</h2>
+            
+            <div class="summary-cards">
+                <div class="summary-card success" id="recallCard">
+                    <h4>Полнота (Recall)</h4>
+                    <div class="metric-value" id="recallValue">0.00</div>
+                    <div class="metric-label" id="recallStatus">Не рассчитано</div>
+                </div>
+                
+                <div class="summary-card">
+                    <h4>Файлов обработано</h4>
+                    <div class="metric-value" id="totalFiles">0</div>
+                    <div class="metric-label">из 1000</div>
+                </div>
+                
+                <div class="summary-card">
+                    <h4>Совпадений найдено</h4>
+                    <div class="metric-value" id="matchesFound">0</div>
+                    <div class="metric-label" id="matchesPercent">0%</div>
+                </div>
+                
+                <div class="summary-card">
+                    <h4>Требование</h4>
+                    <div class="metric-value" id="thresholdValue">0.8</div>
+                    <div class="metric-label" id="requirementMet">Не проверено</div>
+                </div>
+            </div>
+            
+            <div class="detailed-results">
+                <h3>Детальная статистика</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">True Positive (TP):</span>
+                        <span class="stat-value" id="totalTp">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">False Positive (FP):</span>
+                        <span class="stat-value" id="totalFp">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">False Negative (FN):</span>
+                        <span class="stat-value" id="totalFn">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Формула:</span>
+                        <span class="stat-value">TP / (TP + FN)</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="files-section">
+                <h3>📊 Результаты по файлам</h3>
+                <div class="table-container">
+                    <table id="resultsTable">
+                        <thead>
+                            <tr>
+                                <th>Файл</th>
+                                <th>Экспертная оценка</th>
+                                <th>Найдено совпадений</th>
+                                <th>TP</th>
+                                <th>FP</th>
+                                <th>FN</th>
+                                <th>Recall</th>
+                                <th>Статус</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="actions">
+                <button class="btn" onclick="downloadReport()">💾 Скачать отчет</button>
+                <button class="btn btn-secondary" onclick="visualizeResults()">📈 Визуализировать</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/assets/js/evaluation_recall.js"></script>
+</body>
+</html>

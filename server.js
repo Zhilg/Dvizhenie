@@ -110,6 +110,10 @@ app.get('/evaluation/precision', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'views', 'evaluation_precision.html'))
 });
 
+app.get('/evaluation/recall', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'views', 'evaluation_recall.html'))
+});
+
 // API Proxy Routes
 
 // 1. Нормализация, подогнанная под новое апи
@@ -594,6 +598,36 @@ app.post('/api/evaluation/precision', async (req, res) => {
         
         // Отправляем запрос в бэкенд-сервис
         const response = await axios.post('http://back-service:3000/api/evaluation/precision', {}, {
+            headers: {
+                'x-classification-job-id': jobId,
+                'x-evaluation-type': evalType,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        res.json(response.data);
+        
+    } catch (error) {
+        console.error('Precision evaluation proxy error:', error);
+        
+        if (error.response?.status === 404) {
+            return res.status(404).json({ error: 'Classification job not found' });
+        }
+        
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.post('/api/evaluation/recall', async (req, res) => {
+    try {
+        const { 'x-classification-job-id': jobId, 'x-evaluation-type': evalType } = req.headers;
+        
+        if (!jobId || !evalType) {
+            return res.status(400).json({ error: 'Missing required headers' });
+        }
+        
+        // Отправляем запрос в бэкенд-сервис
+        const response = await axios.post('http://back-service:3000/api/evaluation/recall', {}, {
             headers: {
                 'x-classification-job-id': jobId,
                 'x-evaluation-type': evalType,
