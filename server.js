@@ -106,6 +106,10 @@ app.get('/classification/grnti', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'views', 'classification_grnti.html'))
 });
 
+app.get('/evaluation/precision', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'views', 'evaluation_precision.html'))
+});
+
 // API Proxy Routes
 
 // 1. Нормализация, подогнанная под новое апи
@@ -244,13 +248,33 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
   }
 });
 
+function updateJobStatus(jobId, status, resultUrl = null) {
+  const jobIndex = jobsDB.jobs.findIndex(job => job.job_id === jobId);
+  if (jobIndex !== -1) {
+    jobsDB.jobs[jobIndex].status = status;
+    if (resultUrl) {
+      jobsDB.jobs[jobIndex].result_url = resultUrl;
+    }
+    console.log(`Updated job ${jobId} status to: ${status}`);
+    return true;
+  }
+  return false;
+}
 
-
-// Проверка статуса задачи
 app.get('/api/jobs/:jobId', async (req, res) => {
   try {
     const response = await axios.get(`${SEMANTIC_SERVICE_URL}/jobs/${req.params.jobId}`);
-    // ОБНОВЛЯЕМ СТАТУС JOB В БАЗЕ ДАННЫХ    
+    
+    // ОБНОВЛЯЕМ СТАТУС JOB В БАЗЕ ДАННЫХ
+    const jobIndex = jobsDB.jobs.findIndex(job => job.job_id === req.params.jobId);
+    if (jobIndex !== -1) {
+      jobsDB.jobs[jobIndex].status = response.data.status;
+      if (response.data.result_url) {
+        jobsDB.jobs[jobIndex].result_url = response.data.result_url;
+      }
+      console.log(`Updated job ${req.params.jobId} status to: ${response.data.status}`);
+    }
+    
     res.json(response.data);
   } catch (error) {
     console.error('Job status error:', error);
@@ -467,6 +491,20 @@ app.post('/api/classification', upload.array('files'), async (req, res) => {
       }
     });
 
+    // Сохраняем задание в базу данных
+    const jobData = {
+      job_id: response.data.job_id,
+      type: 'classification',
+      model_id: modelId,
+      corpus_path: corpusPath,
+      clustering_job_id: clusteringJobId,
+      status: 'processing',
+      created_at: new Date().toISOString(),
+      estimated_time_min: response.data.estimated_time_min || null
+    };
+    
+    saveJobToDB(jobData);
+
     res.status(202).json(response.data);
 
   } catch (error) {
@@ -512,6 +550,20 @@ app.post('/api/classification/grnti', upload.array('files'), async (req, res) =>
       }
     });
 
+    // Сохраняем задание в базу данных
+    const jobData = {
+      job_id: response.data.job_id,
+      type: 'classification/grnti',
+      model_id: modelId,
+      corpus_path: corpusPath,
+      clustering_job_id: clusteringJobId,
+      status: 'processing',
+      created_at: new Date().toISOString(),
+      estimated_time_min: response.data.estimated_time_min || null
+    };
+    
+    saveJobToDB(jobData);
+
     res.status(202).json(response.data);
 
   } catch (error) {
@@ -526,6 +578,69 @@ app.post('/api/classification/grnti', upload.array('files'), async (req, res) =>
     
     res.status(500).json({
       error: 'Classification failed',
+      message: error.message
+    });
+  }
+});
+
+// Прокси для оценки точности
+app.post('/api/evaluation/precision', async (req, res) => {
+    try {
+        const { 'x-classification-job-id': jobId, 'x-evaluation-type': evalType } = req.headers;
+        
+        if (!jobId || !evalType) {
+            return res.status(400).json({ error: 'Missing required headers' });
+        }
+        
+        // Отправляем запрос в бэкенд-сервис
+        const response = await axios.post('http://back-service:3000/api/evaluation/precision', {}, {
+            headers: {
+                'x-classification-job-id': jobId,
+                'x-evaluation-type': evalType,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        res.json(response.data);
+        
+    } catch (error) {
+        console.error('Precision evaluation proxy error:', error);
+        
+        if (error.response?.status === 404) {
+            return res.status(404).json({ error: 'Classification job not found' });
+        }
+        
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.get('/api/classification/history', (req, res) => {
+  try {
+    console.log('GET /api/classification/history called');
+    
+    const { limit } = req.query;
+    
+    // Фильтруем только задачи классификации
+    let classificationJobs = jobsDB.jobs.filter(job => 
+      job.type === 'classification' || job.type === 'classification/grnti'
+    );
+    
+    // Сортируем по дате (новые сначала)
+    classificationJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    
+    // Лимитируем результаты
+    if (limit) {
+      const limitNum = parseInt(limit);
+      classificationJobs = classificationJobs.slice(0, limitNum);
+    }
+    
+    console.log(`Returning ${classificationJobs.length} classification jobs`);
+    res.json(classificationJobs);
+    
+  } catch (error) {
+    console.error('Error in /api/classification/history:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
       message: error.message
     });
   }

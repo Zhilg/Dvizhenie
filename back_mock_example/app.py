@@ -1702,6 +1702,160 @@ def generate_grnti_mock_result(params):
         "report_url": "/api/grnti-classification/results/mock/detailed_report.pdf"
     }
 
+@app.route('/api/evaluation/precision', methods=['POST'])
+def evaluate_precision():
+    """Задача 13: Синхронная оценка точности классификации"""
+    
+    # Получаем параметры из заголовков
+    classification_job_id = request.headers.get('x-classification-job-id')
+    eval_type = request.headers.get('x-evaluation-type')  # cluster или grnti
+    
+    # Валидация параметров
+    if not classification_job_id or not eval_type:
+        return jsonify(error="Missing required headers: x-classification-job-id, x-evaluation-type"), 400
+    
+    if classification_job_id not in jobs_db:
+        return jsonify(error="Classification job not found"), 404
+    
+    classification_job = jobs_db[classification_job_id]
+    if classification_job.get('status') != 'completed':
+        return jsonify(error="Classification job not completed"), 400
+    
+    # Вычисляем метрики precision
+    classification_result = classification_job['result']
+    
+    if eval_type == 'grnti':
+        result = calculate_grnti_precision(classification_result)
+    else:
+        result = calculate_cluster_precision(classification_result)
+    
+    # Добавляем информацию о задании
+    result['classification_job_id'] = classification_job_id
+    result['evaluation_type'] = 'precision'
+    result['classification_type'] = eval_type
+    result['threshold'] = 0.8
+    result['threshold_met'] = result['metrics']['precision'] >= 0.8
+    
+    return jsonify(result)
+
+def calculate_grnti_precision(grnti_result):
+    """Расчет precision для классификации по ГРНТИ"""
+    total_tp, total_fp, total_fn = 0, 0, 0
+    file_level_metrics = []
+    
+    for file_data in grnti_result['files']:
+        # Экспертная оценка
+        expert_label = file_data['expert_grnti_code']
+        
+        # Предсказания системы (топ-5)
+        system_predictions = file_data['top_5_predictions']
+        system_classes = {pred[0] for pred in system_predictions}
+        
+        # Расчет метрик для файла
+        tp = 1 if expert_label in system_classes else 0
+        fp = len(system_classes) - tp
+        fn = 1 - tp
+        
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+        
+        total_tp += tp
+        total_fp += fp
+        total_fn += fn
+        
+        file_level_metrics.append({
+            "file": file_data['file'],
+            "expert_label": expert_label,
+            "system_predictions": system_predictions,
+            "tp": tp,
+            "fp": fp,
+            "fn": fn,
+            "precision": precision,
+            "match_found": tp > 0
+        })
+    
+    # Итоговые метрики
+    final_precision = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0
+    
+    return {
+        "metrics": {
+            "total_files": len(grnti_result['files']),
+            "total_tp": total_tp,
+            "total_fp": total_fp,
+            "total_fn": total_fn,
+            "precision": round(final_precision, 4)
+        },
+        "file_level_metrics": file_level_metrics,
+        "summary": {
+            "files_with_matches": total_tp,
+            "files_without_matches": len(grnti_result['files']) - total_tp,
+            "average_precision": round(final_precision, 4)
+        }
+    }
+
+def calculate_cluster_precision(cluster_result):
+    """Расчет precision для кластерной классификации"""
+    total_tp, total_fp, total_fn = 0, 0, 0
+    file_level_metrics = []
+    
+    # Mapping экспертных оценок к файлам (в реальной системе это должно приходить извне)
+    expert_mapping = {
+        "new_ai_research.txt": "cluster1",
+        "tech_report.pdf": "cluster1",
+        "physics_paper.txt": "cluster2",
+        "biology_study.pdf": "cluster2",
+        "market_analysis.docx": "cluster3",
+        "financial_report.pdf": "cluster3",
+        "file001.txt": "c1",
+        "file002.txt": "c2"
+    }
+    
+    for file_data in cluster_result['correspondence_table']['files']:
+        filename = file_data['f']
+        expert_label = expert_mapping.get(filename, "unknown")
+        system_predictions = file_data['d']
+        system_classes = {pred[0] for pred in system_predictions}
+        
+        # Расчет метрик для файла
+        tp = 1 if expert_label in system_classes else 0
+        fp = len(system_classes) - tp
+        fn = 1 - tp
+        
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+        
+        total_tp += tp
+        total_fp += fp
+        total_fn += fn
+        
+        file_level_metrics.append({
+            "file": filename,
+            "expert_label": expert_label,
+            "system_predictions": system_predictions,
+            "tp": tp,
+            "fp": fp,
+            "fn": fn,
+            "precision": precision,
+            "match_found": tp > 0
+        })
+    
+    # Итоговые метрики
+    final_precision = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0
+    
+    return {
+        "metrics": {
+            "total_files": len(cluster_result['correspondence_table']['files']),
+            "total_tp": total_tp,
+            "total_fp": total_fp,
+            "total_fn": total_fn,
+            "precision": round(final_precision, 4)
+        },
+        "file_level_metrics": file_level_metrics,
+        "summary": {
+            "files_with_matches": total_tp,
+            "files_without_matches": len(cluster_result['correspondence_table']['files']) - total_tp,
+            "average_precision": round(final_precision, 4)
+        }
+    }
+
 
 # Обработчики ошибок
 @app.errorhandler(404)
