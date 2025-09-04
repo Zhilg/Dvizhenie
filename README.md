@@ -785,3 +785,94 @@ Content-Type: application/json
 - 404:
      1. Задание не найдено
 - 5xx: ошибка на сервере
+
+
+---------------------------------------------------------------------------
+POST /api/evaluation/recall
+Описание:
+
+Синхронное обеспечение полноты поискового отклика не ниже 0.8.
+
+Отрабатывает по результатам выполнения задач classification и classification/grnti. Классификации подлежит контрольный набор данных.
+
+После вызова происходит автоматический расчет значений статусов TP, FP и FN для каждого тестового файла. Численное значение каждого из статусов суммируется по всей тысяче строк тестовых файлов и на основании суммарных значений статусов вычисляется среднее значение полноты (recall) по формуле TP / (TP + FN).
+
+Запрос:
+```HTTP
+POST /api/evaluation/recall HTTP/1.1
+
+Content-Type: application/json
+x-classification-job-id: 123e4567-e89b-12d3-a456-426614174000 # ID решения задачи 11/12
+x-evaluation-type: cluster|grnti  # тип классификации: cluster (Задача 11) или grnti (Задача 12)
+```
+
+Ответ:
+
+```HTTP
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "evaluation_type": "recall",
+  "classification_type": "cluster",  # или "grnti"
+  "classification_job_id": "123e4567-e89b-12d3-a456-426614174000",
+  "threshold": 0.8,
+  "metrics": {
+    "total_files": 1000,
+    "total_tp": 850,
+    "total_fp": 150,
+    "total_fn": 150,
+    "recall": 0.85,  # TP / (TP + FN)
+    "threshold_met": true
+  },
+  "file_level_metrics": [
+    {
+      "file": "document_0012.txt",
+      "expert_label": "cluster1",
+      "system_predictions": [
+        ["cluster1", 0.92],
+        ["cluster3", 0.85],
+        ["cluster5", 0.78],
+        ["cluster7", 0.72],
+        ["cluster9", 0.68]
+      ],
+      "tp": 1,
+      "fp": 4,
+      "fn": 4,
+      "recall": 0.2,  # TP / (TP + FN)
+      "match_found": true
+    },
+    {
+      "file": "document_0457.txt",
+      "expert_label": "cluster2",
+      "system_predictions": [
+        ["cluster1", 0.91],
+        ["cluster4", 0.83],
+        ["cluster6", 0.75],
+        ["cluster8", 0.69],
+        ["cluster10", 0.64]
+      ],
+      "tp": 0,
+      "fp": 5,
+      "fn": 5,
+      "recall": 0.0,
+      "match_found": false
+    }
+  ],
+  "summary": {
+    "files_with_matches": 850,
+    "files_without_matches": 150,
+    "average_recall": 0.85,
+    "requirement_met": true
+  }
+}
+```
+
+Ошибки:
+- 400:
+   1. Неверные параметры
+   2. Задание не завершено
+- 404:
+     1. Задание не найдено
+- 5xx: ошибка на сервере
+
