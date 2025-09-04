@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, send_file
 import uuid
 import time
 import os
+import datetime
 
 app = Flask(__name__)
 
@@ -1357,24 +1358,12 @@ def get_job_status(job_id):
     else:
         jobs_db[job_id]['status'] = 'completed'
         
-        # Возвращаем результат в зависимости от типа задачи
-        if job['type'] == 'upload':
-            return jsonify({
-                "status": "completed",
-                "result_url": f"http://back-service:3000/api/jobs/{job_id}/result"
-            })
-        elif job['type'] == 'clusterisation':
-            return jsonify({
-                "status": "completed",
-                "result_url": f"http://back-service:3000/api/jobs/{job_id}/result"
-            })
-        elif job['type'] == 'classification':
-            return jsonify({
-                "status": "completed",
-                "result_url": f"http://back-service:3000/api/jobs/{job_id}/result"
-            })
-        else:
-            return jsonify(error="Unknown job type"), 500
+
+        return jsonify({
+            "status": "completed",
+            "result_url": f"http://back-service:3000/api/jobs/{job_id}/result"
+        })
+
 
 @app.route('/api/jobs/<job_id>/result', methods=['GET'])
 def get_job_result(job_id):
@@ -1570,6 +1559,149 @@ def classification():
         "job_id": job_id,
         "estimated_time_min": 45
     }), 202
+
+@app.route('/api/classification/grnti', methods=['POST'])
+def start_grnti_classification():
+    # Проверяем обязательные заголовки
+    corpus_path = request.headers.get('x-corpus-path')
+    model_id = request.headers.get('x-model-id')
+    clustering_job_id = request.headers.get('x-clustering-job-id')
+    
+    if not all([corpus_path, model_id, clustering_job_id]):
+        return jsonify(error="Missing required headers: x-corpus-path, x-model-id, x-clustering-job-id"), 400
+    
+    # Проверяем существование предыдущего задания кластеризации
+    if clustering_job_id not in jobs_db:
+        return jsonify(error="Clustering job not found"), 404
+    
+    # Проверяем существование модели
+    model_exists = any(m['model_id'] == model_id for m in MOCK_MODELS)
+    if not model_exists:
+        return jsonify(error="Model not found"), 404
+    
+    # Создаем задание на классификацию по ГРНТИ с готовым результатом
+    job_id = str(uuid.uuid4())
+    jobs_db[job_id] = {
+        'status': 'processing',
+        'type': 'grnti_classification',
+        'progress': 0,
+        'corpus_path': corpus_path,
+        'model_id': model_id,
+        'clustering_job_id': clustering_job_id,
+        'result': generate_grnti_mock_result({
+            'corpus_path': corpus_path,
+            'model_id': model_id,
+            'clustering_job_id': clustering_job_id,
+            'ttl_hours': request.headers.get('x-ttl-hours', 0)
+        })
+    }
+    job_creation_time[job_id] = time.time()
+    
+    return jsonify({
+        "job_id": job_id,
+        "estimated_time_min": 2  # Короткое время для демонстрации
+    }), 202
+
+def generate_grnti_mock_result(params):
+    """Генерация мок-результата классификации по ГРНТИ"""
+    return {
+        "folder": params['corpus_path'],
+        "model_id": params['model_id'],
+        "grnti_branch": "военное дело",
+        "classification_results": {
+            "summary": {
+                "total_files": 1000,
+                "files_classified": 1000,
+                "agreement_with_expert": 0.87,
+                "accuracy_top_3": 0.95
+            },
+            "detailed_stats": {
+                "76.01.00": {
+                    "code": "76.01.00",
+                    "name": "Общие вопросы военной науки и техники",
+                    "expert_count": 150,
+                    "system_count": 145,
+                    "true_positive": 142,
+                    "false_positive": 3,
+                    "false_negative": 8,
+                    "precision": 0.979,
+                    "recall": 0.947
+                },
+                "76.03.00": {
+                    "code": "76.03.00",
+                    "name": "Военное искусство",
+                    "expert_count": 220,
+                    "system_count": 215,
+                    "true_positive": 210,
+                    "false_positive": 5,
+                    "false_negative": 10,
+                    "precision": 0.977,
+                    "recall": 0.955
+                },
+                "76.29.05": {
+                    "code": "76.29.05",
+                    "name": "Авиационное вооружение",
+                    "expert_count": 80,
+                    "system_count": 85,
+                    "true_positive": 78,
+                    "false_positive": 7,
+                    "false_negative": 2,
+                    "precision": 0.918,
+                    "recall": 0.975
+                }
+            }
+        },
+        "files": [
+            {
+                "file": "document_0012.txt",
+                "expert_grnti_code": "76.03.01",
+                "expert_grnti_name": "Стратегия и оперативное искусство",
+                "predicted_grnti_code": "76.03.01",
+                "predicted_grnti_name": "Стратегия и оперативное искусство",
+                "similarity": 0.94,
+                "top_5_predictions": [
+                    ["76.03.01", 0.94],
+                    ["76.03.03", 0.12],
+                    ["76.01.07", 0.08],
+                    ["76.05.01", 0.05],
+                    ["76.29.05", 0.02]
+                ]
+            },
+            {
+                "file": "document_0457.txt",
+                "expert_grnti_code": "76.01.07",
+                "expert_grnti_name": "Системный анализ, управление и обработка информации в военном деле",
+                "predicted_grnti_code": "76.29.05",
+                "predicted_grnti_name": "Авиационное вооружение",
+                "similarity": 0.89,
+                "top_5_predictions": [
+                    ["76.29.05", 0.89],
+                    ["76.01.07", 0.85],
+                    ["76.03.03", 0.07],
+                    ["76.15.11", 0.04],
+                    ["76.17.01", 0.03]
+                ]
+            },
+            {
+                "file": "document_0789.txt",
+                "expert_grnti_code": "76.01.00",
+                "expert_grnti_name": "Общие вопросы военной науки и техники",
+                "predicted_grnti_code": "76.01.00",
+                "predicted_grnti_name": "Общие вопросы военной науки и техники",
+                "similarity": 0.96,
+                "top_5_predictions": [
+                    ["76.01.00", 0.96],
+                    ["76.01.07", 0.15],
+                    ["76.03.00", 0.08],
+                    ["76.29.01", 0.04],
+                    ["76.15.05", 0.02]
+                ]
+            }
+        ],
+        "confusion_matrix_url": "/api/grnti-classification/results/mock/confusion_matrix.png",
+        "report_url": "/api/grnti-classification/results/mock/detailed_report.pdf"
+    }
+
 
 # Обработчики ошибок
 @app.errorhandler(404)

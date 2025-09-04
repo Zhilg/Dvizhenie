@@ -102,6 +102,10 @@ app.get('/classification', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'views', 'classification.html'))
 });
 
+app.get('/classification/grnti', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'views', 'classification_grnti.html'))
+});
+
 // API Proxy Routes
 
 // 1. Нормализация, подогнанная под новое апи
@@ -454,6 +458,51 @@ app.post('/api/classification', upload.array('files'), async (req, res) => {
 
     // Отправляем запрос в бэкенд разработчика
     const response = await axios.post(`${SEMANTIC_SERVICE_URL}/classification`, {}, {
+      headers: {
+        'x-corpus-path': corpusPath,
+        'x-model-id': modelId,
+        'x-clustering-job-id': clusteringJobId,
+        'x-ttl-hours': ttlHours,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    res.status(202).json(response.data);
+
+  } catch (error) {
+    console.error('Classification proxy error:', error);
+    
+    if (error.response?.status === 404) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: error.response.data?.message || 'Resource not found'
+      });
+    }
+    
+    res.status(500).json({
+      error: 'Classification failed',
+      message: error.message
+    });
+  }
+});
+
+app.post('/api/classification/grnti', upload.array('files'), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    const modelId = req.headers['x-model-id'] || 'default-model';
+    const clusteringJobId = req.headers['x-clustering-job-id'];
+    const ttlHours = req.headers['x-ttl-hours'] || 0;
+    const corpusPath = `/shared_data/${req.corpusId}`;
+
+    if (!clusteringJobId) {
+      return res.status(400).json({ error: 'x-clustering-job-id header is required' });
+    }
+
+    // Отправляем запрос в бэкенд разработчика
+    const response = await axios.post(`${SEMANTIC_SERVICE_URL}/classification/grnti`, {}, {
       headers: {
         'x-corpus-path': corpusPath,
         'x-model-id': modelId,

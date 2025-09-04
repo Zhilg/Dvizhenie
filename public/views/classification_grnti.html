@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Классификация текстов по ГРНТИ</title>
+    <link rel="stylesheet" href="../assets/css/classification_grnti.css">
+</head>
+<body>
+    <a href="http://localhost:4000" class="home-btn">🏠 Домой</a>
+    <div class="container">
+        <h1>Классификация текстов по рубрикам ГРНТИ</h1>
+        
+        <div class="config-section">
+            <h3>🏷️ Настройки классификации</h3>
+            
+            <div class="config-group">
+                <span class="config-label">Модель классификации:</span>
+                <select id="modelSelect" class="config-input">
+                    <option value="">Загрузка моделей...</option>
+                </select>
+                <button class="btn btn-small" onclick="loadModels()" title="Обновить список моделей">🔄</button>
+            </div>
+            
+            <div class="config-group">
+                <span class="config-label">ID задачи кластеризации:</span>
+                <input type="text" id="clusteringJobId" class="config-input" placeholder="Введите ID кластеризации" required>
+                <button class="btn btn-small" onclick="loadClusteringHistory()" title="Выбрать из истории">📋</button>
+            </div>
+            
+            <div class="config-group">
+                <span class="config-label">TTL Hours:</span>
+                <input type="number" id="ttlHours" class="config-input" value="24" min="0">
+            </div>
+
+            <div class="model-info" id="modelInfo" style="display: none;">
+                <h4>Информация о модели:</h4>
+                <div id="modelDetails"></div>
+            </div>
+        </div>
+        
+        <div class="upload-section">
+            <input type="file" id="fileInput" webkitdirectory directory multiple style="display: none;">
+            <button class="btn" onclick="selectFolder()">📁 Выберите папку с текстами для классификации</button>
+            <span id="selectedFolder" class="selected-folder"></span>
+            
+            <button class="btn btn-primary" onclick="startGrntiClassification()" id="startBtn" disabled>
+                🚀 Запустить классификацию по ГРНТИ
+            </button>
+        </div>
+        
+        <div id="status" class="status-container"></div>
+
+        <div class="section">
+            <h3>📊 История задач кластеризации</h3>
+            <div id="clusteringHistory" class="job-history"></div>
+        </div>
+
+        <div class="history-section">
+            <h3>📋 История заданий классификации</h3>
+            <div class="history-controls">
+                <button class="btn btn-secondary" onclick="loadJobHistory('grnti_classification')">Классификация ГРНТИ</button>
+                <button class="btn btn-secondary" onclick="loadJobHistory('all')">Все задания</button>
+            </div>
+            <div id="jobHistory" class="job-history-list"></div>
+        </div>
+
+        <div id="loading" class="loading" style="display: none;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+            </div>
+            <p>Обработка файлов... Пожалуйста, подождите.</p>
+            <p id="progressDetails"></p>
+        </div>
+
+        <div id="results" class="results" style="display: none;">
+            <h2>📊 Результаты классификации по ГРНТИ</h2>
+            
+            <div class="summary-section">
+                <h3>Общая статистика</h3>
+                <div id="summaryStats" class="stats-grid"></div>
+            </div>
+            
+            <div class="detailed-results">
+                <h3>Детальные результаты по файлам</h3>
+                <div class="table-container">
+                    <table id="resultsTable">
+                        <thead>
+                            <tr>
+                                <th>Файл</th>
+                                <th>Экспертная оценка</th>
+                                <th>Предсказание системы</th>
+                                <th>Сходство</th>
+                                <th>Топ-5 предсказаний</th>
+                                <th>Статус</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="actions">
+                <button class="btn" onclick="downloadResults()">💾 Скачать отчет</button>
+                <button class="btn btn-secondary" onclick="showConfusionMatrix()">📊 Матрица ошибок</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../assets/js/classification_grnti.js"></script>
+</body>
+</html>
