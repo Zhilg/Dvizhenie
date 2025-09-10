@@ -680,6 +680,27 @@ app.get('/api/classification/history', (req, res) => {
   }
 });
 
+app.get('/api/grnti-codes', async (req, res) => {
+    try {
+        // Здесь можно загружать данные из БД или файла
+        const grntiCodes = {
+            "76.01.00": {
+                "name": "Общие вопросы военной науки и техники",
+                "description": "Общие вопросы военной науки, военной техники, военного дела"
+            },
+            "76.03.00": {
+                "name": "Военное искусство",
+                "description": "Военное искусство, стратегия, тактика, оперативное искусство"
+            },
+            // ... другие коды
+        };
+        
+        res.json(grntiCodes);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to load GRNTI codes' });
+    }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log('Configured services:');

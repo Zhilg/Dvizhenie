@@ -23,15 +23,15 @@
             </div>
             
             <div class="config-group">
-                <span class="config-label">ID задачи кластеризации:</span>
-                <input type="text" id="clusteringJobId" class="config-input" placeholder="Введите ID кластеризации" required>
+                <span class="config-label">ID выбранной задачи кластеризации:</span>
+                <input type="text" id="clusteringJobId" class="config-input" placeholder="Выберите задачу кластеризации из истории" required>
                 <button class="btn btn-small" onclick="loadClusteringHistory()" title="Выбрать из истории">📋</button>
             </div>
             
-            <div class="config-group">
+            <!-- <div class="config-group">
                 <span class="config-label">TTL Hours:</span>
                 <input type="number" id="ttlHours" class="config-input" value="24" min="0">
-            </div>
+            </div> -->
 
             <div class="model-info" id="modelInfo" style="display: none;">
                 <h4>Информация о модели:</h4>
@@ -93,6 +93,7 @@
                                 <th>Сходство</th>
                                 <th>Топ-5 предсказаний</th>
                                 <th>Статус</th>
+                                <th>Действия</th>
                             </tr>
                         </thead>
                         <tbody id="resultsBody"></tbody>
@@ -103,6 +104,21 @@
             <div class="actions">
                 <button class="btn" onclick="downloadResults()">💾 Скачать отчет</button>
                 <button class="btn btn-secondary" onclick="showConfusionMatrix()">📊 Матрица ошибок</button>
+                <button class="btn btn-success" onclick="saveAllExpertOpinions()">💾 Сохранить мнения эксперта</button>
+            </div>
+        </div>
+    </div>
+                <div id="grntiModal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <span class="close" onclick="closeGrntiModal()">&times;</span>
+                    <h3>📚 Расшифровка кода ГРНТИ</h3>
+                    <div id="grntiCodeInfo">
+                        <p><strong>Код:</strong> <span id="modalCode"></span></p>
+                        <p><strong>Название:</strong> <span id="modalName"></span></p>
+                        <p><strong>Описание:</strong> <span id="modalDescription"></span></p>
+                        <p><strong>Область знаний:</strong> <span id="modalBranch"></span></p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
