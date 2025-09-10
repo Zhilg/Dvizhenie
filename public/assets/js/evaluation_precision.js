@@ -66,7 +66,7 @@ function useClassificationJob(jobId, jobType) {
 async function evaluatePrecision() {
     const jobId = document.getElementById('classificationJobId').value;
     const evalType = document.getElementById('evaluationType').value;
-    const threshold = parseFloat(document.getElementById('precisionThreshold').value);
+    const threshold = 0.8;
     
     if (!jobId || !evalType) {
         showStatus('❌ Заполните все обязательные поля', 'error');
@@ -111,8 +111,7 @@ function displayResults(results) {
     document.getElementById('matchesFound').textContent = results.summary.files_with_matches;
     document.getElementById('matchesPercent').textContent = 
         Math.round((results.summary.files_with_matches / results.metrics.total_files) * 100) + '%';
-    document.getElementById('thresholdValue').textContent = results.threshold;
-    
+
     // Обновляем детальную статистику
     document.getElementById('totalTp').textContent = results.metrics.total_tp;
     document.getElementById('totalFp').textContent = results.metrics.total_fp;
@@ -121,20 +120,15 @@ function displayResults(results) {
     // Обновляем статус требования
     const precisionCard = document.getElementById('precisionCard');
     const precisionStatus = document.getElementById('precisionStatus');
-    const requirementMet = document.getElementById('requirementMet');
-    
+   
     if (results.threshold_met) {
         precisionCard.classList.add('success');
         precisionCard.classList.remove('warning', 'error');
         precisionStatus.textContent = 'Требование выполнено ✅';
-        requirementMet.textContent = 'Выполнено ✅';
-        requirementMet.className = 'status-success';
     } else {
         precisionCard.classList.add('error');
         precisionCard.classList.remove('success', 'warning');
         precisionStatus.textContent = 'Требование не выполнено ❌';
-        requirementMet.textContent = 'Не выполнено ❌';
-        requirementMet.className = 'status-error';
     }
     
     // Заполняем таблицу результатов

@@ -66,7 +66,7 @@ function useClassificationJob(jobId, jobType) {
 async function evaluateRecall() {
     const jobId = document.getElementById('classificationJobId').value;
     const evalType = document.getElementById('evaluationType').value;
-    const threshold = parseFloat(document.getElementById('recallThreshold').value);
+    const threshold = 0.8;
     
     if (!jobId || !evalType) {
         showStatus('❌ Заполните все обязательные поля', 'error');
@@ -111,7 +111,7 @@ function displayResults(results) {
     document.getElementById('matchesFound').textContent = results.summary.files_with_matches;
     document.getElementById('matchesPercent').textContent = 
         Math.round((results.summary.files_with_matches / results.metrics.total_files) * 100) + '%';
-    document.getElementById('thresholdValue').textContent = results.threshold;
+
     
     // Обновляем детальную статистику
     document.getElementById('totalTp').textContent = results.metrics.total_tp;
@@ -121,20 +121,17 @@ function displayResults(results) {
     // Обновляем статус требования
     const recallCard = document.getElementById('recallCard');
     const recallStatus = document.getElementById('recallStatus');
-    const requirementMet = document.getElementById('requirementMet');
+
     
     if (results.threshold_met) {
         recallCard.classList.add('success');
         recallCard.classList.remove('warning', 'error');
         recallStatus.textContent = 'Требование выполнено ✅';
-        requirementMet.textContent = 'Выполнено ✅';
-        requirementMet.className = 'status-success';
+
     } else {
         recallCard.classList.add('error');
         recallCard.classList.remove('success', 'warning');
         recallStatus.textContent = 'Требование не выполнено ❌';
-        requirementMet.textContent = 'Не выполнено ❌';
-        requirementMet.className = 'status-error';
     }
     
     // Заполняем таблицу результатов

@@ -16,22 +16,17 @@
             <h3>⚙️ Настройки оценки</h3>
             
             <div class="config-group">
-                <span class="config-label">ID задания классификации:</span>
+                <span class="config-label">ID задания классификации (уникальный идентификатор выполненного задания):</span>
                 <input type="text" id="classificationJobId" class="config-input" placeholder="Введите ID задания">
                 <button class="btn btn-small" onclick="loadClassificationHistory()" title="Выбрать из истории">📋</button>
             </div>
             
             <div class="config-group">
-                <span class="config-label">Тип классификации:</span>
+                <span class="config-label">Тип классификации (метод группировки текстов):</span>
                 <select id="evaluationType" class="config-input">
                     <option value="cluster">Кластерная (Задача 11)</option>
                     <option value="grnti">ГРНТИ (Задача 12)</option>
                 </select>
-            </div>
-            
-            <div class="config-group">
-                <span class="config-label">Порог точности:</span>
-                <input type="number" id="precisionThreshold" class="config-input" value="0.8" min="0" max="1" step="0.01">
             </div>
             
             <button class="btn btn-primary" onclick="evaluatePrecision()" id="evaluateBtn">
@@ -51,56 +46,38 @@
             <div id="classificationHistory" class="job-history-list"></div>
         </div>
         
+        <div class="explanation-section">
+            <h3>📝 Пояснение параметров оценки</h3>
+            <div class="explanation-grid">
+                <div class="explanation-item">
+                    <h4>ID задания классификации</h4>
+                    <p>Уникальный идентификатор выполненного задания по классификации текстов, результаты которого нужно оценить.</p>
+                </div>
+                <div class="explanation-item">
+                    <h4>Тип классификации</h4>
+                    <p>Определяет метод классификации: кластерная (автоматическая группировка текстов) или по рубрикам ГРНТИ (государственный рубрикатор научно-технической информации).</p>
+                </div>
+                <div class="explanation-item">
+                    <h4>Истинно-положительные (True Positive, TP)</h4>
+                    <p>Количество корректно определенных системой совпадений между текстами, которые действительно являются семантически близкими.</p>
+                </div>
+                <div class="explanation-item">
+                    <h4>Ложноположительные (False Positive, FP)</h4>
+                    <p>Количество ошибочно определенных системой совпадений, когда тексты были помечены как семантически близкие, но фактически таковыми не являются.</p>
+                </div>
+                <div class="explanation-item">
+                    <h4>Ложноотрицательные (False Negative, FN)</h4>
+                    <p>Количество пропущенных системой совпадений, когда тексты являются семантически близкими, но система не обнаружила этого факта.</p>
+                </div>
+                <div class="explanation-item">
+                    <h4>Precision (Точность)</h4>
+                    <p>Метрика, показывающая долю истинных совпадений среди всех найденных системой. Вычисляется как TP / (TP + FP).</p>
+                </div>
+            </div>
+        </div>
+        
         <div id="results" class="results" style="display: none;">
             <h2>📈 Результаты оценки точности</h2>
-            
-            <div class="summary-cards">
-                <div class="summary-card success" id="precisionCard">
-                    <h4>Точность (Precision)</h4>
-                    <div class="metric-value" id="precisionValue">0.00</div>
-                    <div class="metric-label" id="precisionStatus">Не рассчитано</div>
-                </div>
-                
-                <div class="summary-card">
-                    <h4>Файлов обработано</h4>
-                    <div class="metric-value" id="totalFiles">0</div>
-                    <div class="metric-label">из 1000</div>
-                </div>
-                
-                <div class="summary-card">
-                    <h4>Совпадений найдено</h4>
-                    <div class="metric-value" id="matchesFound">0</div>
-                    <div class="metric-label" id="matchesPercent">0%</div>
-                </div>
-                
-                <div class="summary-card">
-                    <h4>Требование</h4>
-                    <div class="metric-value" id="thresholdValue">0.8</div>
-                    <div class="metric-label" id="requirementMet">Не проверено</div>
-                </div>
-            </div>
-            
-            <div class="detailed-results">
-                <h3>Детальная статистика</h3>
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <span class="stat-label">True Positive (TP):</span>
-                        <span class="stat-value" id="totalTp">0</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">False Positive (FP):</span>
-                        <span class="stat-value" id="totalFp">0</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">False Negative (FN):</span>
-                        <span class="stat-value" id="totalFn">0</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Формула:</span>
-                        <span class="stat-value">TP / (TP + FP)</span>
-                    </div>
-                </div>
-            </div>
             
             <div class="files-section">
                 <h3>📊 Результаты по файлам</h3>
@@ -111,15 +88,62 @@
                                 <th>Файл</th>
                                 <th>Экспертная оценка</th>
                                 <th>Найдено совпадений</th>
-                                <th>TP</th>
-                                <th>FP</th>
-                                <th>FN</th>
-                                <th>Precision</th>
+                                <th>Истинно-положительные (TP)</th>
+                                <th>Ложноположительные (FP)</th>
+                                <th>Ложноотрицательные (FN)</th>
+                                <th>Точность (Precision)</th>
                                 <th>Статус</th>
                             </tr>
                         </thead>
                         <tbody id="resultsBody"></tbody>
                     </table>
+                </div>
+            </div>
+
+            <div class="summary-cards">
+                <div class="summary-card success" id="precisionCard">
+                    <h4>Точность (Precision)</h4>
+                    <div class="metric-value" id="precisionValue">0.00</div>
+                    <div class="metric-label">
+                        <span id="requiredPrecision">Требуемая: 0.8</span>
+                    </div>
+                    <div class="metric-label" id="precisionStatus">Не рассчитано</div>
+                </div>
+                
+                <div class="summary-card">
+                    <h4>Число совпадений от разработчика</h4>
+                    <div class="metric-value" id="totalFiles">0</div>
+                    <div class="metric-label">из 1000</div>
+                </div>
+                
+                <div class="summary-card">
+                    <h4>Число подтвержденных совпадений</h4>
+                    <div class="metric-value" id="matchesFound">0</div>
+                    <div class="metric-label" id="matchesPercent">0%</div>
+                </div>
+            </div>
+            
+            
+            
+            <div class="detailed-results">
+                <h3>Детальная статистика</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">Истинно-положительные (TP):</span>
+                        <span class="stat-value" id="totalTp">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Ложноположительные (FP):</span>
+                        <span class="stat-value" id="totalFp">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Ложноотрицательные (FN):</span>
+                        <span class="stat-value" id="totalFn">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Формула точности:</span>
+                        <span class="stat-value">TP / (TP + FP)</span>
+                    </div>
                 </div>
             </div>
             
