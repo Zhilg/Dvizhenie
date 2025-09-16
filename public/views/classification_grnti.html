@@ -89,10 +89,7 @@
                             <tr>
                                 <th>Файл</th>
                                 <th>Экспертная оценка</th>
-                                <th>Предсказание системы</th>
-                                <th>Сходство</th>
-                                <th>Топ-5 предсказаний</th>
-                                <th>Статус</th>
+                                <th>Предсказания системы (редактируемые)</th>
                                 <th>Действия</th>
                             </tr>
                         </thead>
@@ -100,14 +97,13 @@
                     </table>
                 </div>
             </div>
-            
+                
             <div class="actions">
                 <button class="btn" onclick="downloadResults()">💾 Скачать отчет</button>
                 <button class="btn btn-secondary" onclick="showConfusionMatrix()">📊 Матрица ошибок</button>
-                <button class="btn btn-success" onclick="saveAllExpertOpinions()">💾 Сохранить мнения эксперта</button>
+                <button class="btn btn-success" onclick="saveAllExpertOpinions()">💾 Сохранить все экспертные оценки</button>
             </div>
         </div>
-    </div>
                 <div id="grntiModal" class="modal" style="display: none;">
                 <div class="modal-content">
                     <span class="close" onclick="closeGrntiModal()">&times;</span>

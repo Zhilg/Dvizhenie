@@ -231,26 +231,13 @@ function displayResults(results) {
     tbody.innerHTML = '';
     
     results.files.forEach(file => {
-        const isCorrect = file.expert_grnti_code === file.predicted_grnti_code;
-        const rowClass = isCorrect ? 'correct' : 'incorrect';
-        
         const row = document.createElement('tr');
-        row.className = rowClass;
         row.dataset.file = file.file;
         
         row.innerHTML = `
             <td>${file.file}</td>
             <td></td> <!-- Экспертная оценка -->
-            <td></td> <!-- Предсказание системы -->
-            <td>
-                <input type="number" class="expert-input" 
-                       value="${(file.similarity * 100).toFixed(1)}" 
-                       min="0" max="100" step="1" 
-                       onchange="saveExpertPercentage('${file.file}', this.value)">
-                %
-            </td>
-            <td></td> <!-- Топ-5 предсказаний -->
-            <td>${isCorrect ? '✅' : '❌'}</td>
+            <td></td> <!-- Предсказания системы (редактируемые) -->
             <td>
                 <button class="btn btn-small" onclick="showFileDetails('${file.file}')">
                     📋 Детали
@@ -260,33 +247,209 @@ function displayResults(results) {
         
         // Экспертная оценка (редактируемая)
         const expertCell = row.cells[1];
-        const expertContent = createGrntiCell(
+        const expertContent = createEditableGrntiCell(
             file.expert_grnti_code, 
-            file.expert_grnti_name, 
-            true,
-            'expert'
+            file.expert_grnti_name,
+            'expert',
+            file.file
         );
         expertCell.appendChild(expertContent);
         
-        // Предсказание системы (только просмотр)
-        const systemCell = row.cells[2];
-        const systemContent = createGrntiCell(
-            file.predicted_grnti_code, 
-            file.predicted_grnti_name, 
-            false,
-            'system'
-        );
-        systemCell.appendChild(systemContent);
-        
-        // Топ-5 предсказаний
-        const top5Cell = row.cells[4];
-        const top5Content = createTop5PredictionsCell(file.top_5_predictions);
-        top5Cell.appendChild(top5Content);
+        // Предсказания системы (редактируемые)
+        const predictionsCell = row.cells[2];
+        const predictionsContent = createEditablePredictionsCell(file.top_5_predictions, file.file);
+        predictionsCell.appendChild(predictionsContent);
         
         tbody.appendChild(row);
     });
 
     document.getElementById('results').style.display = 'block';
+}
+
+function createEditableGrntiCell(code, name, source, fileName, predictionIndex = null) {
+    const container = document.createElement('div');
+    container.className = 'editable-grnti-cell';
+    
+    const textSpan = document.createElement('span');
+    textSpan.textContent = `${code}${name ? ' - ' + name : ''}`;
+    
+    const infoIcon = document.createElement('span');
+    infoIcon.textContent = 'ℹ️';
+    infoIcon.className = 'info-icon';
+    infoIcon.title = 'Показать расшифровку ГРНТИ';
+    infoIcon.onclick = (e) => {
+        e.stopPropagation();
+        showGrntiInfo(code, source);
+    };
+    
+    container.appendChild(textSpan);
+    container.appendChild(infoIcon);
+    
+    // Делаем ячейку редактируемой
+    container.onclick = (e) => {
+        if (e.target !== infoIcon) {
+            editGrntiCell(container, code, name, source, fileName, predictionIndex);
+        }
+    };
+    
+    return container;
+}
+
+function editGrntiCell(cellElement, currentCode, currentName, source, fileName, predictionIndex) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = `${currentCode}${currentName ? ' - ' + currentName : ''}`;
+    input.className = 'editable-input';
+    
+    // Сохраняем оригинальное содержимое
+    const originalContent = cellElement.innerHTML;
+    
+    // Заменяем содержимое на input
+    cellElement.innerHTML = '';
+    cellElement.appendChild(input);
+    input.focus();
+    
+    // Обработка сохранения
+    const saveEdit = () => {
+        const newValue = input.value.trim();
+        if (newValue) {
+            // Разбираем введенное значение (ожидаем формат "код - название")
+            const parts = newValue.split(' - ');
+            const newCode = parts[0];
+            const newName = parts.slice(1).join(' - ');
+            
+            // Обновляем содержимое ячейки
+            cellElement.innerHTML = '';
+            const newContent = createEditableGrntiCell(newCode, newName, source, fileName, predictionIndex);
+            cellElement.appendChild(newContent);
+            
+            // Сохраняем изменение эксперта
+            if (source === 'expert') {
+                saveExpertOpinion(fileName, newCode, newName);
+            } else if (source === 'system' && predictionIndex !== null) {
+                saveExpertPrediction(fileName, predictionIndex, newCode, newName);
+            }
+        } else {
+            // Восстанавливаем оригинальное содержимое
+            cellElement.innerHTML = originalContent;
+        }
+    };
+    
+    // Обработка нажатия Enter
+    input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            saveEdit();
+        }
+    });
+    
+    // Обработка потери фокуса
+    input.addEventListener('blur', saveEdit);
+}
+
+// Сохранение экспертного предсказания
+function saveExpertPrediction(fileName, predictionIndex, code, name) {
+    if (!expertOpinions[fileName]) {
+        expertOpinions[fileName] = {
+            predictions: []
+        };
+    }
+    
+    if (!expertOpinions[fileName].predictions) {
+        expertOpinions[fileName].predictions = [];
+    }
+    
+    expertOpinions[fileName].predictions[predictionIndex] = {
+        code: code,
+        name: name
+    };
+    
+    console.log('Expert prediction saved:', fileName, predictionIndex, code, name);
+}
+
+// Сохранение экспертной уверенности
+function saveExpertConfidence(fileName, predictionIndex, confidence) {
+    if (!expertOpinions[fileName]) {
+        expertOpinions[fileName] = {
+            confidences: []
+        };
+    }
+    
+    if (!expertOpinions[fileName].confidences) {
+        expertOpinions[fileName].confidences = [];
+    }
+    
+    expertOpinions[fileName].confidences[predictionIndex] = confidence;
+    
+    console.log('Expert confidence saved:', fileName, predictionIndex, confidence);
+}
+
+// Сохранение всех экспертных оценок
+async function saveAllExpertOpinions() {
+    try {
+        const response = await fetch('/api/save-expert-opinions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                job_id: currentJobId,
+                expert_opinions: expertOpinions,
+                original_results: currentResults
+            })
+        });
+        
+        if (response.ok) {
+            showStatus('✅ Все экспертные оценки сохранены', 'success');
+        } else {
+            throw new Error('Failed to save expert opinions');
+        }
+    } catch (error) {
+        console.error('Error saving expert opinions:', error);
+        showStatus('❌ Ошибка сохранения экспертных оценок', 'error');
+    }
+}
+
+function createEditablePredictionsCell(predictions, fileName) {
+    const container = document.createElement('div');
+    container.className = 'top-predictions-container';
+    
+    predictions.forEach((pred, index) => {
+        const [code, confidence] = pred;
+        const predictionItem = document.createElement('div');
+        predictionItem.className = 'prediction-item';
+        
+        const rankSpan = document.createElement('span');
+        rankSpan.className = 'prediction-rank';
+        rankSpan.textContent = `${index + 1}.`;
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'prediction-content';
+        
+        // Ячейка с кодом ГРНТИ (редактируемая)
+        const grntiCell = createEditableGrntiCell(code, '', 'system', fileName, index);
+        
+        // Поле для ввода процента уверенности
+        const confidenceInput = document.createElement('input');
+        confidenceInput.type = 'number';
+        confidenceInput.min = 0;
+        confidenceInput.max = 100;
+        confidenceInput.step = 0.1;
+        confidenceInput.value = (confidence * 100).toFixed(1);
+        confidenceInput.className = 'prediction-confidence-input';
+        confidenceInput.addEventListener('change', (e) => {
+            saveExpertConfidence(fileName, index, parseFloat(e.target.value));
+        });
+        
+        contentDiv.appendChild(grntiCell);
+        contentDiv.appendChild(confidenceInput);
+        
+        predictionItem.appendChild(rankSpan);
+        predictionItem.appendChild(contentDiv);
+        
+        container.appendChild(predictionItem);
+    });
+    
+    return container;
 }
 
 function showFileDetails(fileName) {

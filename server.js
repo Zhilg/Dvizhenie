@@ -114,6 +114,10 @@ app.get('/evaluation/recall', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'views', 'evaluation_recall.html'))
 });
 
+app.get('/fine-tuning', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'views', 'fine-tuning.html'))
+});
+
 // API Proxy Routes
 
 // 1. Нормализация, подогнанная под новое апи
@@ -699,6 +703,44 @@ app.get('/api/grnti-codes', async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: 'Failed to load GRNTI codes' });
     }
+});
+
+// Прокси-запрос к бэкенду для дообучения
+app.post('/api/fine-tuning/start', async (req, res) => {
+  try {
+    const baseModelId = req.headers['x-base-model-id'];
+    const formData = new FormData();
+    
+    // Добавляем файлы и параметры
+    for (const file of req.files) {
+      formData.append('files', file.buffer, file.originalname);
+    }
+    
+    formData.append('new_model_name', req.body.new_model_name);
+    formData.append('min_file_size', req.body.min_file_size);
+    formData.append('max_file_size', req.body.max_file_size);
+    formData.append('file_extensions', req.body.file_extensions);
+    
+    // Отправляем запрос на бэкенд
+    const backendResponse = await fetch(`${SEMANTIC_SERVICE_URL}/fine-tuning/start`, {
+      method: 'POST',
+      headers: {
+        'X-Base-Model-ID': baseModelId
+      },
+      body: formData
+    });
+    
+    if (!backendResponse.ok) {
+      throw new Error(`Backend error: ${backendResponse.statusText}`);
+    }
+    
+    const result = await backendResponse.json();
+    res.json(result);
+    
+  } catch (error) {
+    console.error('Fine-tuning proxy error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.listen(PORT, () => {

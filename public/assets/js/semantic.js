@@ -135,7 +135,7 @@ async function uploadDocuments() {
 
         const data = await response.json();
         currentJobId = data.job_id;
-
+        currentJobId = currentJobId.replace("/", "");
         document.getElementById('uploadResults').innerHTML = `
             <div class="alert alert-info">
                 <h4 class="alert-heading">Загрузка начата</h4>

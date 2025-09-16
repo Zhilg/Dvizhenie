@@ -494,6 +494,58 @@ tr:hover {
     transition: width 0.3s ease;
 }
 
+.editable-grnti-cell {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px;
+    border: 1px dashed #ccc;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    background-color: #f9f9f9;
+}
+
+.editable-grnti-cell:hover {
+    background-color: #f0f0f0;
+    border-color: #999;
+}
+
+.prediction-confidence-input {
+    width: 60px;
+    margin-left: 8px;
+    text-align: right;
+}
+
+.top-predictions-container {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 8px;
+    border: 1px solid #eee;
+    border-radius: 4px;
+}
+
+.prediction-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    padding: 4px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.prediction-rank {
+    font-weight: bold;
+    margin-right: 8px;
+    min-width: 20px;
+}
+
+.prediction-content {
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
 @media (max-width: 768px) {
     .config-group {
         grid-template-columns: 1fr;

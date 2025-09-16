@@ -260,7 +260,7 @@ function displayResults(results) {
     }
 
     // Обрабатываем угловое расхождение (вычисляем из косинусной близости)
-    const angularDiff = Math.acos(cosineSimilarity);
+    const angularDiff = results.angular_similarity_radians;
     const angularBadge = document.getElementById('angular-badge');
     const angleText = document.getElementById('angle-text');
 
