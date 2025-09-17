@@ -7,6 +7,7 @@ services:
       - ./shared_data:/shared_data
     networks:
       - new_network
+    container_name: back-service
     deploy:
       resources:
         reservations:
