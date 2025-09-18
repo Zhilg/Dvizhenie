@@ -179,7 +179,7 @@ HTTP/1.1 200 OK:
 
 {
   "status": "completed",
-  "result_url": "http:///" # ссылка на результат"
+  "result_url": "http://back-service:3000/<ваш эндпоинт получения результата>" # ссылка на результат
 }
 ```
 
@@ -301,7 +301,7 @@ HTTP/1.1 200 OK:
 - 5xx: ошибка на сервере
   
 ---------------------------------------------------------------------------
-7. POST /api/clusterisation
+7. POST /api/clusterization
 
 Описание:
 
@@ -316,7 +316,7 @@ HTTP/1.1 200 OK:
 
 Запрос:
 ```
-POST /api/clusterisation HTTP/1.1
+POST /api/clusterization HTTP/1.1
 content-type: application/json (обязательный)
 x-corpus-path: относительный путь к каталогу с файлами. Путь указывается относительно точки монтирования докера ПМ (обязательный). Точка монтирования - папка shared_data
 x-model-id: идентификатор модели (обязательный)
