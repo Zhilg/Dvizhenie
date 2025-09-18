@@ -706,28 +706,21 @@ app.get('/api/grnti-codes', async (req, res) => {
 });
 
 // Прокси-запрос к бэкенду для дообучения
-app.post('/api/fine-tuning/start', async (req, res) => {
+app.post('/api/fine-tuning/start', upload.array('files'), async (req, res) => {
   try {
     const baseModelId = req.headers['x-base-model-id'];
-    const formData = new FormData();
-    
-    // Добавляем файлы и параметры
-    for (const file of req.files) {
-      formData.append('files', file.buffer, file.originalname);
-    }
-    
-    formData.append('new_model_name', req.body.new_model_name);
-    formData.append('min_file_size', req.body.min_file_size);
-    formData.append('max_file_size', req.body.max_file_size);
-    formData.append('file_extensions', req.body.file_extensions);
-    
+    const newModelName = req.headers['x-new-model-name'];
+    const corpusId = req.corpusId;
+
+
     // Отправляем запрос на бэкенд
     const backendResponse = await fetch(`${SEMANTIC_SERVICE_URL}/fine-tuning/start`, {
       method: 'POST',
       headers: {
-        'X-Base-Model-ID': baseModelId
+        'X-Base-Model-ID': baseModelId,
+        'X-New-Model-Name': newModelName,
+        'x-corpus-path': corpusId
       },
-      body: formData
     });
     
     if (!backendResponse.ok) {
@@ -735,7 +728,10 @@ app.post('/api/fine-tuning/start', async (req, res) => {
     }
     
     const result = await backendResponse.json();
-    res.json(result);
+    res.json({
+      ...result,
+      corpus_id: corpusId // Возвращаем ID созданной папки
+    });
     
   } catch (error) {
     console.error('Fine-tuning proxy error:', error);

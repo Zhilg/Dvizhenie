@@ -8,7 +8,7 @@ services:
     networks:
       new_network:
         aliases:
-          - back-service  # Добавьте это
+          - back-service  
     deploy:
       resources:
         reservations:

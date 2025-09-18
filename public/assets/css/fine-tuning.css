@@ -317,6 +317,141 @@ tr:hover {
     margin-left: 8px;
 }
 
+/* Стили для кластеризации */
+.clustering-results {
+    margin-top: 20px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #007bff;
+}
+
+.changes-section {
+    margin: 15px 0;
+    padding: 15px;
+    background: white;
+    border-radius: 6px;
+}
+
+.changes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.change-item {
+    padding: 10px;
+    border-radius: 4px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.change-item.new { background: #d4edda; color: #155724; }
+.change-item.removed { background: #f8d7da; color: #721c24; }
+.change-item.modified { background: #fff3cd; color: #856404; }
+.change-item.moved { background: #d1ecf1; color: #0c5460; }
+
+.cluster-node {
+    margin: 5px 0;
+    padding: 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    background: white;
+    position: relative;
+}
+
+.cluster-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.cluster-stats {
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.cluster-children {
+    margin-left: 20px;
+    border-left: 2px solid #e9ecef;
+    padding-left: 10px;
+}
+
+.change-badge {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.7em;
+    font-weight: bold;
+}
+
+.cluster-category {
+    margin: 20px 0;
+    padding: 15px;
+    border-left: 4px solid #ddd;
+}
+
+.cluster-category h4 {
+    margin-bottom: 15px;
+}
+
+.cluster-card {
+    background: #f8f9fa;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 8px;
+    border-left: 4px solid #6c757d;
+}
+
+.cluster-card.new {
+    border-left-color: #28a745;
+    background: #f0fff4;
+}
+
+.cluster-card.modified {
+    border-left-color: #ffc107;
+    background: #fffaf0;
+}
+
+.cluster-card.unchanged {
+    border-left-color: #6c757d;
+    background: #f8f9fa;
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.summary-item {
+    text-align: center;
+    padding: 15px;
+    background: #e9ecef;
+    border-radius: 8px;
+}
+
+.summary-value {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.summary-label {
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+
+.change-badge.new { background: #d4edda; color: #155724; }
+.change-badge.modified { background: #fff3cd; color: #856404; }
+.change-badge.removed { background: #f8d7da; color: #721c24; }
+.change-badge.moved { background: #d1ecf1; color: #0c5460; }
+
 @media (max-width: 768px) {
     .config-group {
         flex-direction: column;

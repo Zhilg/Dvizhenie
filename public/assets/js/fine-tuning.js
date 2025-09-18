@@ -3,6 +3,44 @@ let checkInterval = null;
 let availableModels = [];
 let baseTrainingTime = null;
 let fineTuningStartTime = null;
+let timerInterval = null;
+let startTime = null;
+let trainingTime = null;
+
+function startTimer() {
+    startTime = new Date();
+    timerInterval = setInterval(updateTimer, 1000);
+}
+
+function stopTimer() {
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        
+        // Сохраняем итоговое время
+        const endTime = new Date();
+        trainingTime = (endTime - startTime) / 1000;
+        return trainingTime; // Возвращаем время
+    }
+    return null;
+}
+
+function resetTimer() {
+    stopTimer();
+    totalTrainingTime = null;
+    document.getElementById('timerDisplay').textContent = '00:00:00';
+}
+
+function updateTimer() {
+    const currentTime = new Date();
+    const elapsedTime = new Date(currentTime - startTime);
+    
+    const hours = elapsedTime.getUTCHours().toString().padStart(2, '0');
+    const minutes = elapsedTime.getUTCMinutes().toString().padStart(2, '0');
+    const seconds = elapsedTime.getUTCSeconds().toString().padStart(2, '0');
+    
+    document.getElementById('timerDisplay').textContent = `${hours}:${minutes}:${seconds}`;
+}
 
 // Загрузка доступных моделей
 async function loadModels() {
@@ -121,6 +159,7 @@ function analyzeSelectedFiles(files) {
 
 // Запуск процесса дообучения
 async function startFineTuning() {
+    resetTimer();
     const baseModelId = document.getElementById('baseModelSelect').value;
     const newModelName = document.getElementById('newModelName').value || `fine_tuned_${Date.now()}`;
     const files = document.getElementById('trainingDataInput').files;
@@ -147,19 +186,7 @@ async function startFineTuning() {
         const formData = new FormData();
         Array.from(files).forEach(file => formData.append('files', file));
         formData.append('new_model_name', newModelName);
-        
-        // Добавляем параметры фильтрации
-        const minFileSize = parseFloat(document.getElementById('minFileSize').value) * 1024 * 1024;
-        const maxFileSize = parseFloat(document.getElementById('maxFileSize').value) * 1024 * 1024;
-        const fileExtensions = document.getElementById('fileExtensions').value
-            .split(',')
-            .map(ext => ext.trim().toLowerCase())
-            .filter(ext => ext);
-        
-        formData.append('min_file_size', minFileSize);
-        formData.append('max_file_size', maxFileSize);
-        formData.append('file_extensions', JSON.stringify(fileExtensions));
-        
+
         const response = await fetch('/api/fine-tuning/start', {
             method: 'POST',
             headers: {
@@ -167,7 +194,7 @@ async function startFineTuning() {
             },
             body: formData
         });
-        
+        startTimer();
         if (!response.ok) {
             const error = await response.text();
             throw new Error(error || 'Ошибка сервера');
@@ -193,7 +220,7 @@ function startStatusChecking() {
     
     checkInterval = setInterval(async () => {
         try {
-            const response = await fetch(`/api/fine-tuning/status/${currentJobId}`);
+            const response = await fetch(`/api/jobs/${currentJobId}`);
             if (!response.ok) throw new Error('Status check failed');
             
             const status = await response.json();
@@ -221,7 +248,9 @@ function updateProgress(status) {
     let details = `Прогресс: ${progress}%`;
     if (status.details) {
         details += ` | Файлов обработано: ${status.details.files_processed || 0}/${status.details.total_files || 0}`;
-        details += ` | Эпоха: ${status.details.current_epoch || 0}/${status.details.total_epochs || 0}`;
+        if (status.details.current_epoch) {
+            details += ` | Эпоха: ${status.details.current_epoch || 0}/${status.details.total_epochs || 0}`;
+        }
     }
     document.getElementById('progressDetails').textContent = details;
     
@@ -254,7 +283,7 @@ async function fetchResults(resultUrl) {
                 "x-result-url": resultUrl
             },
         });
-        
+        trainingTime = stopTimer();
         if (!response.ok) throw new Error('Failed to fetch results');
         
         const results = await response.json();
@@ -270,7 +299,6 @@ async function fetchResults(resultUrl) {
     }
 }
 
-// Отображение результатов дообучения
 function displayResults(results) {
     document.getElementById('results').style.display = 'block';
     
@@ -285,13 +313,23 @@ function displayResults(results) {
             <div class="stat-label">Файлов обработано</div>
         </div>
         <div class="stat-item">
-            <div class="stat-value">${results.training_time ? results.training_time.toFixed(1) + 'с' : 'N/A'}</div>
+            <div class="stat-value">${results.training_time ? results.training_time.toFixed(1) + ' с' : 'N/A'}</div>
             <div class="stat-label">Время дообучения</div>
         </div>
         <div class="stat-item">
             <div class="stat-value">${results.performance_improvement ? (results.performance_improvement * 100).toFixed(1) + '%' : 'N/A'}</div>
             <div class="stat-label">Улучшение точности</div>
         </div>
+        ${results.clustering_result ? `
+        <div class="stat-item">
+            <div class="stat-value">${results.clustering_result.total_clusters || 0}</div>
+            <div class="stat-label">Всего кластеров</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">+${results.clustering_result.new_clusters || 0}</div>
+            <div class="stat-label">Новых кластеров</div>
+        </div>
+        ` : ''}
     `;
     
     // Сравнение производительности
@@ -313,6 +351,164 @@ function displayResults(results) {
             </div>
         `;
     }
+    
+    // Отображение результатов кластеризации, если они есть
+    if (results.clustering_result) {
+        displayClusteringResults(results.clustering_result);
+    }
+}
+
+// Функция для отображения результатов кластеризации
+function displayClusteringResults(clusterData) {
+    console.log(clusterData);
+    const clusteringSection = document.createElement('div');
+    clusteringSection.className = 'section';
+    
+    let clustersHtml = '';
+    
+    // Новые кластеры
+    if (clusterData.cluster_changes?.new_clusters_details?.length > 0) {
+        clustersHtml += `
+            <div class="cluster-category">
+                <h4 style="color: #28a745;">🆕 Новые кластеры (${clusterData.new_clusters})</h4>
+                ${clusterData.cluster_changes.new_clusters_details.map(cluster => `
+                    <div class="cluster-card new">
+                        <h5>${cluster.cluster_id}</h5>
+                        <p><strong>Размер:</strong> ${cluster.size} файлов</p>
+                        <p><strong>Темы:</strong> ${cluster.main_topics.join(', ')}</p>
+                        <p><strong>Уверенность:</strong> ${(cluster.avg_confidence * 100).toFixed(1)}%</p>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    
+    // Измененные кластеры
+    if (clusterData.cluster_changes?.modified_clusters_details?.length > 0) {
+        clustersHtml += `
+            <div class="cluster-category">
+                <h4 style="color: #ffc107;">🔄 Измененные кластеры (${clusterData.modified_clusters})</h4>
+                ${clusterData.cluster_changes.modified_clusters_details.map(cluster => `
+                    <div class="cluster-card modified">
+                        <h5>${cluster.cluster_id}</h5>
+                        <p><strong>Размер:</strong> ${cluster.old_size} → ${cluster.new_size} 
+                           <span style="color: ${cluster.size_change.startsWith('+') ? '#28a745' : '#dc3545'}">
+                           ${cluster.size_change}
+                           </span>
+                        </p>
+                        <p><strong>Новые темы:</strong> ${cluster.new_topics.join(', ') || 'нет'}</p>
+                        <p><strong>Удаленные темы:</strong> ${cluster.removed_topics.join(', ') || 'нет'}</p>
+                        <p><strong>Улучшение уверенности:</strong> +${(cluster.confidence_improvement * 100).toFixed(1)}%</p>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    
+    // Неизмененные кластеры
+    if (clusterData.cluster_changes?.unchanged_clusters?.length > 0) {
+        clustersHtml += `
+            <div class="cluster-category">
+                <h4 style="color: #6c757d;">✅ Неизмененные кластеры (${clusterData.unchanged_clusters})</h4>
+                ${clusterData.cluster_changes.unchanged_clusters.map(cluster => `
+                    <div class="cluster-card unchanged">
+                        <h5>${cluster.cluster_id}</h5>
+                        <p><strong>Размер:</strong> ${cluster.size} файлов</p>
+                        <p><strong>Темы:</strong> ${cluster.main_topics.join(', ')}</p>
+                        <p><strong>Уверенность:</strong> ${(cluster.avg_confidence * 100).toFixed(1)}%</p>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    
+    // Сводная статистика
+    if (clusterData.summary) {
+        const summary = clusterData.summary;
+        clustersHtml += `
+            <div class="cluster-summary">
+                <h4>📊 Сводная статистика кластеризации</h4>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <span class="summary-value">${summary.total_documents}</span>
+                        <span class="summary-label">Всего документов</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-value" style="color: #28a745;">${summary.documents_in_new_clusters}</span>
+                        <span class="summary-label">В новых кластерах</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-value" style="color: #ffc107;">${summary.documents_in_modified_clusters}</span>
+                        <span class="summary-label">В измененных кластерах</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-value" style="color: #6c757d;">${summary.documents_in_unchanged_clusters}</span>
+                        <span class="summary-label">В неизмененных кластерах</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-value" style="color: #17a2b8;">${summary.overall_confidence_change}</span>
+                        <span class="summary-label">Изменение уверенности</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-value" style="color: #6f42c1;">${summary.cluster_quality_improvement}</span>
+                        <span class="summary-label">Качество кластеризации</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    clusteringSection.innerHTML = `
+        <h3>📊 Результаты кластеризации после дообучения</h3>
+        <div class="clustering-results">
+            <div class="cluster-overview">
+                <p><strong>Всего кластеров:</strong> ${clusterData.total_clusters || 'N/A'}</p>
+                <p><strong>Новых:</strong> <span style="color: #28a745;">${clusterData.new_clusters || 'N/A'}</span></p>
+                <p><strong>Измененных:</strong> <span style="color: #ffc107;">${clusterData.modified_clusters || 'N/A'}</span></p>
+                <p><strong>Неизмененных:</strong> <span style="color: #6c757d;">${clusterData.unchanged_clusters || 'N/A'}</span></p>
+            </div>
+            ${clustersHtml}
+        </div>
+    `;
+    
+    document.getElementById('results').appendChild(clusteringSection);
+}
+
+function renderClusterTree(node, level = 0) {
+    if (!node.id) return '<p>Нет данных о кластеризации</p>';
+    
+    let html = `
+        <div class="cluster-node" style="margin-left: ${level * 20}px">
+            <div class="cluster-header">
+                <strong>${node.name || 'Без названия'}</strong> 
+                <span class="cluster-stats">${node.fileCount || 0} файлов, ${((node.avgSimilarity || 0) * 100).toFixed(1)}%</span>
+            </div>
+    `;
+    
+    if (node.changes && node.changes.status !== 'unchanged') {
+        html += `<span class="change-badge ${node.changes.status}">${getChangeBadgeText(node.changes.status)}</span>`;
+    }
+    
+    if (node.children && node.children.length > 0) {
+        html += '<div class="cluster-children">';
+        node.children.forEach(child => {
+            html += renderClusterTree(child, level + 1);
+        });
+        html += '</div>';
+    }
+    
+    html += '</div>';
+    return html;
+}
+
+function getChangeBadgeText(status) {
+    const statusText = {
+        'new': 'НОВЫЙ',
+        'modified': 'ИЗМЕНЕН',
+        'removed': 'УДАЛЕН',
+        'moved': 'ПЕРЕМЕЩЕН'
+    };
+    return statusText[status] || status;
 }
 
 // Загрузка истории дообучения
@@ -346,7 +542,7 @@ function displayFineTuningHistory(history) {
                 <p><strong>Базовая модель:</strong> ${job.base_model_id || 'N/A'}</p>
                 <p><strong>Новая модель:</strong> ${job.new_model_id || 'N/A'}</p>
                 <p><strong>Создано:</strong> ${new Date(job.created_at).toLocaleString()}</p>
-                ${job.training_time ? `<p><strong>Время:</strong> ${job.training_time.toFixed(1)}с</p>` : ''}
+                <p><strong>Время:</strong> ${trainingTime}с</p>
             </div>
         </div>
     `).join('');
