@@ -205,10 +205,9 @@ function resetUploadButton() {
     isUploading = false;
 }
 
-// Получение результатов загрузки
 async function getUploadResults(resultUrl) {
     try {
-        // Делаем запрос на URL результата
+        // Пытаемся сделать запрос на оригинальный URL
         const response = await fetch("/api/result", {
             method: "GET",
             headers: {
@@ -217,35 +216,77 @@ async function getUploadResults(resultUrl) {
             },
         });
 
+        // Если получили 404, пробуем внутренний адрес контейнера
+        if (response.status === 404 || response.status === 500) {
+            return await getUploadResultsFallback(resultUrl);
+        }
+
         if (!response.ok) throw new Error(await response.text());
         
-        const results = await response.json();
-        
-        currentCorpusId = results.corpus_id;
-        const modelId = document.getElementById('modelSelect').value;
-        
-        // Сохраняем в историю
-        saveCorpusId(results.corpus_id, modelId, results.file_count);
-        
-        // Показываем результаты
-        document.getElementById('uploadResults').innerHTML = `
-            <div class="alert alert-success">
-                <h4 class="alert-heading">✅ Загрузка завершена</h4>
-                <p><strong>ID корпуса:</strong> ${results.corpus_id}</p>
-                <p><strong>Модель:</strong> ${getModelNameById(modelId)}</p>
-                <p><strong>Файлов:</strong> ${results.file_count}</p>
-                <p><strong>Размер индекса:</strong> ${results.index_stats?.total_size_gb || 'N/A'} GB</p>
-                <p class="mb-0"><small>Корпус успешно загружен и проиндексирован</small></p>
-            </div>
-        `;
-        
-        // Обновляем интерфейс
-        updateUI();
+        return await processSuccessfulResponse(response);
         
     } catch (error) {
         console.error("Error getting upload results:", error);
         showError('Ошибка получения результатов загрузки: ' + error.message);
     }
+}
+
+// Фолбэк-функция для запроса к внутреннему адресу контейнера
+async function getUploadResultsFallback(resultUrl) {
+    try {
+        console.log("Original URL failed, trying back-service internal address...");
+        
+        // Извлекаем конечный эндпоинт из оригинального URL
+        const urlObj = new URL(resultUrl);
+        const endpoint = urlObj.pathname + urlObj.search;
+        
+        // Формируем новый URL для внутреннего запроса
+        const internalUrl = `http://back-service:3000${endpoint}`;
+        
+        const response = await fetch("/api/result", {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                "x-result-url": internalUrl
+            },
+        });
+
+        if (!response.ok) throw new Error(await response.text());
+        
+        return await processSuccessfulResponse(response);
+        
+    } catch (error) {
+        console.error("Error in fallback request:", error);
+        throw new Error(`Fallback also failed: ${error.message}`);
+    }
+}
+
+// Обработка успешного ответа (вынесено в отдельную функцию)
+async function processSuccessfulResponse(response) {
+    const results = await response.json();
+    
+    currentCorpusId = results.corpus_id;
+    const modelId = document.getElementById('modelSelect').value;
+    
+    // Сохраняем в историю
+    saveCorpusId(results.corpus_id, modelId, results.file_count);
+    
+    // Показываем результаты
+    document.getElementById('uploadResults').innerHTML = `
+        <div class="alert alert-success">
+            <h4 class="alert-heading">✅ Загрузка завершена</h4>
+            <p><strong>ID корпуса:</strong> ${results.corpus_id}</p>
+            <p><strong>Модель:</strong> ${getModelNameById(modelId)}</p>
+            <p><strong>Файлов:</strong> ${results.file_count}</p>
+            <p><strong>Размер индекса:</strong> ${results.index_stats?.total_size_gb || 'N/A'} GB</p>
+            <p class="mb-0"><small>Корпус успешно загружен и проиндексирован</small></p>
+        </div>
+    `;
+    
+    // Обновляем интерфейс
+    updateUI();
+    
+    return results;
 }
 
 // Поиск по корпусу
