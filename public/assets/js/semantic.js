@@ -236,12 +236,22 @@ async function getUploadResultsFallback(resultUrl) {
     try {
         console.log("Original URL failed, trying back-service internal address...");
         
-        // Извлекаем конечный эндпоинт из оригинального URL
-        const urlObj = new URL(resultUrl);
-        const endpoint = urlObj.pathname + urlObj.search;
+        // Проверяем, является ли resultUrl полным URL или только путем
+        let internalUrl;
         
-        // Формируем новый URL для внутреннего запроса
-        const internalUrl = `http://back-service:3000${endpoint}`;
+        try {
+            // Пытаемся создать URL объект - если успешно, значит это полный URL
+            const urlObj = new URL(resultUrl);
+            const endpoint = urlObj.pathname + urlObj.search;
+            internalUrl = `http://back-service:3000${endpoint}`;
+        } catch (error) {
+            // Если ошибка - значит resultUrl это только путь
+            if (error.code === 'ERR_INVALID_URL') {
+                internalUrl = `http://back-service:3000${resultUrl}`;
+            } else {
+                throw error;
+            }
+        }
         
         const response = await fetch("/api/result", {
             method: "GET",
