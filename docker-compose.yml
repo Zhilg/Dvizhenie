@@ -1,19 +1,20 @@
 services:
   back-service:
-    image: back-service # Или любое другое имя вашего контейнера
+    image: back-service # # # Или любое другое имя вашего контейнера
     ports:
       - "3000:3000" # Разработчик ОБЯЗАН использовать порт 3000 внутри контейнера
     volumes:
       - ./shared_data:/shared_data
     networks:
-      - new_network
-    container_name: back-service
+      new_network:
+        aliases:
+          - back-service  # Добавьте это
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
+              count: all
               capabilities: [gpu]
     restart: unless-stopped
 
