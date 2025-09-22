@@ -188,12 +188,12 @@ async function checkUploadStatus() {
 // Обновление прогресса загрузки
 function updateUploadProgress(percent, message) {
     const progressBar = document.getElementById('uploadProgressBar');
-    const progressPercent = document.getElementById('uploadProgressPercent');
+    // const progressPercent = document.getElementById('uploadProgressPercent');
     const statusElement = document.getElementById('uploadStatus');
     
     progressBar.style.width = percent + '%';
     progressBar.setAttribute('aria-valuenow', percent);
-    progressPercent.textContent = percent + '%';
+    // progressPercent.textContent = percent + '%';
     statusElement.textContent = message;
 }
 
@@ -207,7 +207,8 @@ function resetUploadButton() {
 
 async function getUploadResults(resultUrl) {
     try {
-        // Пытаемся сделать запрос на оригинальный URL
+        console.log("Making request to /api/result with resultUrl:", resultUrl);
+        
         const response = await fetch("/api/result", {
             method: "GET",
             headers: {
@@ -216,17 +217,30 @@ async function getUploadResults(resultUrl) {
             },
         });
 
-        // Если получили 404, пробуем внутренний адрес контейнера
-        if (response.status === 404 || response.status === 500) {
+        console.log("Response status:", response.status, "ok:", response.ok);
+        console.log("Response headers:", Object.fromEntries(response.headers));
+
+        // Более надежная проверка статусов для фоллбэка
+        if (response.status >= 500 || response.status === 404) {
+            console.log("Fallback triggered for status:", response.status);
             return await getUploadResultsFallback(resultUrl);
         }
 
-        if (!response.ok) throw new Error(await response.text());
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.log("Response not OK, error text:", errorText);
+            throw new Error(errorText);
+        }
         
         return await processSuccessfulResponse(response);
         
     } catch (error) {
-        console.error("Error getting upload results:", error);
+        console.error("Error in getUploadResults:", error);
+        // Проверяем, это сетевая ошибка или HTTP ошибка
+        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+            console.log("This is a network error, trying fallback...");
+            return await getUploadResultsFallback(resultUrl);
+        }
         showError('Ошибка получения результатов загрузки: ' + error.message);
     }
 }
@@ -234,30 +248,24 @@ async function getUploadResults(resultUrl) {
 // Фолбэк-функция для запроса к внутреннему адресу контейнера
 async function getUploadResultsFallback(resultUrl) {
     try {
-        console.log("Original URL failed, trying back-service internal address...");
+        console.log("Fallback called with resultUrl:", resultUrl);
         
-        // Проверяем, является ли resultUrl полным URL или только путем
-        let internalUrl;
+        // Проверяем валидность URL перед использованием
+        if (!resultUrl || typeof resultUrl !== 'string') {
+            throw new Error('Invalid resultUrl provided');
+        }
         
-        try {
-            // Пытаемся создать URL объект - если успешно, значит это полный URL
-            const urlObj = new URL(resultUrl);
-            const endpoint = urlObj.pathname + urlObj.search;
-            internalUrl = `http://back-service:3000${endpoint}`;
-        } catch (error) {
-            // Если ошибка - значит resultUrl это только путь
-            if (error.code === 'ERR_INVALID_URL') {
-                internalUrl = `http://back-service:3000${resultUrl}`;
-            } else {
-                throw error;
-            }
+        // Если это относительный путь, преобразуем в абсолютный
+        let actualUrl = resultUrl;
+        if (!resultUrl.startsWith('http')) {
+            actualUrl = `http://back-service:3000${resultUrl.startsWith('/') ? '' : '/'}${resultUrl}`;
         }
         
         const response = await fetch("/api/result", {
             method: "GET",
             headers: {
                 "Content-Type": "application/json",
-                "x-result-url": internalUrl
+                "x-result-url": actualUrl
             },
         });
 
@@ -266,8 +274,7 @@ async function getUploadResultsFallback(resultUrl) {
         return await processSuccessfulResponse(response);
         
     } catch (error) {
-        console.error("Error in fallback request:", error);
-        throw new Error(`Fallback also failed: ${error.message}`);
+        throw new Error('Fallback also failed: ' + error.message);
     }
 }
 

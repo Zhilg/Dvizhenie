@@ -211,7 +211,7 @@ destination: (req, file, cb) =>{
     // Создаем папку с UUID внутри shared_data
     const corpusId = req.corpusId || uuidv4();
     req.corpusId = corpusId; // Сохраняем ID для использования в основном обработчике
-    const corpusPath = path.join(SHARED_DATA_PATH, corpusId);
+    const corpusPath = corpusId;
     
     if (!fs.existsSync(corpusPath)) {
       fs.mkdirSync(corpusPath);
@@ -253,6 +253,76 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
       error: 'Upload failed',
       message: error.message
     });
+  }
+});
+
+const createCorpusId = (req, res, next) => {
+  if (!req.corpusId) {
+    req.corpusId = uuidv4();
+  }
+  next();
+};
+
+app.post('/api/clusterization', createCorpusId, upload.array('files'), async (req, res) => {
+  try {
+    const modelId = req.headers['x-model-id'] || 'default-model';
+    const ttlHours = req.headers['x-ttl-hours'] || 0;
+    
+    const corpusId = req.corpusId;
+    
+    // Если передан заголовок x-corpus-path, используем его как имя папки внутри UUID
+    const userCorpusPath = req.headers['x-corpus-path'];
+    let finalCorpusPath = `/${corpusId}`;
+    
+    if (userCorpusPath) {
+      // Создаем подпапку внутри нашей UUID папки
+      const userFolderPath = path.join(SHARED_DATA_PATH, corpusId, userCorpusPath);
+      if (!fs.existsSync(userFolderPath)) {
+        fs.mkdirSync(userFolderPath, { recursive: true });
+      }
+      finalCorpusPath = `/${corpusId}`;
+    }
+
+    const response = await axios.post(`${SEMANTIC_SERVICE_URL}/clusterization`, req.body, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-corpus-path': finalCorpusPath, 
+        'x-model-id': modelId,
+        'x-ttl-hours': ttlHours
+      }
+    });
+
+    const jobData = {
+      job_id: response.data.job_id,
+      type: 'clusterization',
+      model_id: modelId,
+      corpus_path: finalCorpusPath,
+      status: 'completed',
+      created_at: new Date().toISOString(),
+      estimated_time_min: response.data.estimated_time_min || null
+    };
+    
+    saveJobToDB(jobData);
+
+    res.status(202).json({
+      ...response.data,
+      corpus_id: corpusId 
+    });
+
+  } catch (error) {
+    console.error('Clusterization error:', error);
+    
+    if (error.response) {
+      res.status(error.response.status).json({
+        error: 'Clusterization failed',
+        message: error.response.data?.message || error.message
+      });
+    } else {
+      res.status(500).json({
+        error: 'Clusterization failed',
+        message: error.message
+      });
+    }
   }
 });
 
@@ -389,59 +459,7 @@ app.get('/api/models', async (req, res) => {
   }
 });
 
-app.post('/api/clusterization', async (req, res) => {
-  try {
-    const modelId = req.headers['x-model-id'] || 'default-model';
-    const ttlHours = req.headers['x-ttl-hours'] || 0;
-    const corpusPath = req.headers['x-corpus-path'];
 
-    if (!corpusPath) {
-      return res.status(400).json({
-        error: 'Missing required header',
-        message: 'x-corpus-path header is required'
-      });
-    }
-
-    const response = await axios.post(`${SEMANTIC_SERVICE_URL}/clusterization`, req.body, {
-      headers: {
-        'Content-Type': 'application/json',
-        'x-corpus-path': corpusPath,
-        'x-model-id': modelId,
-        'x-ttl-hours': ttlHours
-      }
-    });
-
-    const jobData = {
-      job_id: response.data.job_id,
-      type: 'clusterization',
-      model_id: modelId,
-      corpus_path: corpusPath,
-      status: 'completed',
-      created_at: new Date().toISOString(),
-      estimated_time_min: response.data.estimated_time_min || null
-    };
-    
-    saveJobToDB(jobData);
-
-    res.status(202).json(response.data);
-
-
-  } catch (error) {
-    console.error('Clusterization error:', error);
-    
-    if (error.response) {
-      res.status(error.response.status).json({
-        error: 'Clusterization failed',
-        message: error.response.data?.message || error.message
-      });
-    } else {
-      res.status(500).json({
-        error: 'Clusterization failed',
-        message: error.message
-      });
-    }
-  }
-});
 
 app.get('/api/clusterization/history', (req, res) => {
   try {
