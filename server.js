@@ -211,7 +211,7 @@ destination: (req, file, cb) =>{
     // Создаем папку с UUID внутри shared_data
     const corpusId = req.corpusId || uuidv4();
     req.corpusId = corpusId; // Сохраняем ID для использования в основном обработчике
-    const corpusPath = corpusId;
+    const corpusPath = path.join(SHARED_DATA_PATH, corpusId);
     
     if (!fs.existsSync(corpusPath)) {
       fs.mkdirSync(corpusPath);
