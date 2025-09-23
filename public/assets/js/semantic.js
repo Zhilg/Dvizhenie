@@ -1,12 +1,12 @@
-const BASE_URL = "/api"; // Базовый URL API
+const BASE_URL = "/api"; 
 
-// Глобальные переменные
+
 let currentJobId = null;
 let currentCorpusId = null;
 let checkStatusInterval = null;
 let isUploading = false;
 let corpusHistory = [];
-let availableModels = []; // Список доступных моделей
+let availableModels = []; 
 
 // Инициализация
 document.addEventListener('DOMContentLoaded', async () => {
@@ -217,18 +217,10 @@ async function getUploadResults(resultUrl) {
             },
         });
 
-        console.log("Response status:", response.status, "ok:", response.ok);
-        console.log("Response headers:", Object.fromEntries(response.headers));
-
-        // Более надежная проверка статусов для фоллбэка
-        if (response.status >= 500 || response.status === 404) {
-            console.log("Fallback triggered for status:", response.status);
-            return await getUploadResultsFallback(resultUrl);
-        }
+        console.log("Response status:", response.status);
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.log("Response not OK, error text:", errorText);
             throw new Error(errorText);
         }
         
@@ -236,59 +228,7 @@ async function getUploadResults(resultUrl) {
         
     } catch (error) {
         console.error("Error in getUploadResults:", error);
-        // Проверяем, это сетевая ошибка или HTTP ошибка
-        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-            console.log("This is a network error, trying fallback...");
-            return await getUploadResultsFallback(resultUrl);
-        }
         showError('Ошибка получения результатов загрузки: ' + error.message);
-    }
-}
-
-// либо с бэкенда пришла неправильная ссылка, либо пришел только эндпоинт
-async function getUploadResultsFallback(resultUrl) {
-    try {
-        console.log("Fallback called with resultUrl:", resultUrl);
-        
-        if (!resultUrl || typeof resultUrl !== 'string') {
-            throw new Error('Invalid resultUrl provided');
-        }
-        
-        let actualUrl = resultUrl;
-        
-        // Если это HTTP ссылка, пытаемся разобрать и заменить домен
-        if (resultUrl.startsWith('http')) {
-            try {
-                const urlObj = new URL(resultUrl);
-                // Заменяем хост на наш бэкенд, сохраняя путь и параметры
-                actualUrl = `http://back-service:3000${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
-                console.log("Replaced domain with back-service:", actualUrl);
-            } catch (e) {
-                // Если URL невалидный, считаем что это endpoint
-                console.log("Invalid URL, treating as endpoint:", resultUrl);
-                actualUrl = `http://back-service:3000${resultUrl.startsWith('/') ? '' : '/'}${resultUrl}`;
-            }
-        } else {
-            // Если это относительный путь, добавляем наш бэкенд
-            actualUrl = `http://back-service:3000${resultUrl.startsWith('/') ? '' : '/'}${resultUrl}`;
-        }
-        
-        console.log("Final URL to fetch:", actualUrl);
-        
-        const response = await fetch("/api/result", {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-                "x-result-url": actualUrl
-            },
-        });
-
-        if (!response.ok) throw new Error(await response.text());
-        
-        return await processSuccessfulResponse(response);
-        
-    } catch (error) {
-        throw new Error('Fallback also failed: ' + error.message);
     }
 }
 

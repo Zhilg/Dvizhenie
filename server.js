@@ -4,53 +4,46 @@ const cors = require('cors');
 const axios = require('axios');
 const morgan = require('morgan');
 const multer = require('multer');
-const FormData = require('form-data');
-const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const cosineSimilarity = require('cosine-similarity');
-const { promisify } = require('util');
-const stream = require('stream');
-const pipeline = promisify(stream.pipeline);
-const { decode } = require('iconv-lite'); // Добавляем библиотеку для работы с кодировками
+const fs = require('fs');
 
 const app = express();
 const PORT = 4000;
 const SHARED_DATA_PATH = "/app/shared_data";
+const BACKEND_SERVICE_URL = 'http://back-service:3000/api';
 
-const EMBEDDING_SERVICE_URL = 'http://back-service:3000/api';
-const NORMALIZATION_SERVICE_URL = 'http://back-service:3000/api';
-const SEMANTIC_SERVICE_URL = 'http://back-service:3000/api'; 
-
-// Middleware
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
-app.use(express.text({ type: 'text/plain' })); 
+app.use(express.text({ type: 'text/plain' }));
 
-let jobsDB = {
-  jobs: []
-};
-
-function saveJobToDB(jobData) {
-  try {
-    // Добавляем timestamp если его нет
-    if (!jobData.created_at) {
-      jobData.created_at = new Date().toISOString();
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    if (!fs.existsSync(SHARED_DATA_PATH)) {
+      fs.mkdirSync(SHARED_DATA_PATH, { recursive: true });
     }
     
-    // Добавляем job в базу
-    jobsDB.jobs.push(jobData);
+    const corpusId = req.corpusId || uuidv4();
+    req.corpusId = corpusId;
+    const corpusPath = path.join(SHARED_DATA_PATH, corpusId);
     
-    console.log(`Job saved to DB: ${jobData.job_id} (type: ${jobData.type})`);
-    return true;
-  } catch (error) {
-    console.error('Error saving job to DB:', error);
-    return false;
+    if (!fs.existsSync(corpusPath)) {
+      fs.mkdirSync(corpusPath);
+    }
+    
+    cb(null, corpusPath);
+  },
+  filename: (req, file, cb) => {
+    file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    cb(null, file.originalname);
   }
-}
+});
 
-// Proxy error handler
+const upload = multer({ storage });
+let jobsDB = { jobs: [] };
+
 const handleProxyError = (error, serviceName, res) => {
   console.error(`Proxy error for ${serviceName}:`, error);
   
@@ -73,7 +66,39 @@ const handleProxyError = (error, serviceName, res) => {
   }
 };
 
-// Static routes (без изменений)
+const saveJobToDB = (jobData) => {
+  try {
+    if (!jobData.created_at) {
+      jobData.created_at = new Date().toISOString();
+    }
+    
+    jobsDB.jobs.push(jobData);
+    console.log(`Job saved to DB: ${jobData.job_id} (type: ${jobData.type})`);
+    return true;
+  } catch (error) {
+    console.error('Error saving job to DB:', error);
+    return false;
+  }
+};
+
+const getEmbedding = async (text, modelId) => {
+  const response = await axios.post(`${BACKEND_SERVICE_URL}/embedding`, text, {
+    headers: {
+      'Content-Type': 'text/plain',
+      'x-model-id': modelId
+    },
+  });
+  return response.data;
+};
+
+const createCorpusId = (req, res, next) => {
+  if (!req.corpusId) {
+    req.corpusId = uuidv4();
+  }
+  next();
+};
+
+// Статика
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -91,53 +116,44 @@ app.get('/semantic', (req, res) => {
 });
 
 app.get('/clusterization', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'views', 'clusterization.html'))
+  res.sendFile(path.join(__dirname, 'public', 'views', 'clusterization.html'));
 });
 
 app.get('/semantic/search/unstructured', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'views', 'semantic.html'))
+  res.sendFile(path.join(__dirname, 'public', 'views', 'semantic.html'));
 });
 
 app.get('/classification', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'views', 'classification.html'))
+  res.sendFile(path.join(__dirname, 'public', 'views', 'classification.html'));
 });
 
 app.get('/classification/grnti', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'views', 'classification_grnti.html'))
+  res.sendFile(path.join(__dirname, 'public', 'views', 'classification_grnti.html'));
 });
 
 app.get('/evaluation/precision', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'views', 'evaluation_precision.html'))
+  res.sendFile(path.join(__dirname, 'public', 'views', 'evaluation_precision.html'));
 });
 
 app.get('/evaluation/recall', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'views', 'evaluation_recall.html'))
+  res.sendFile(path.join(__dirname, 'public', 'views', 'evaluation_recall.html'));
 });
 
 app.get('/fine-tuning', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'views', 'fine-tuning.html'))
+  res.sendFile(path.join(__dirname, 'public', 'views', 'fine-tuning.html'));
 });
 
-// API Proxy Routes
+// API 
 
-// 1. Нормализация, подогнанная под новое апи
+// Обработка текста
 app.post('/api/normalize', async (req, res) => {
   try {
-    console.log('Получен запрос на /api/normalize');  // <-- Добавьте это
-    console.log('Headers:', req.headers);              // <-- И это
-    console.log('Body:', req.body);                   // <-- И это
-    
-    const response = await axios.post(NORMALIZATION_SERVICE_URL+"/normalize", req.body, {
+    const response = await axios.post(`${BACKEND_SERVICE_URL}/normalize`, req.body, {
       headers: {
         'Content-Type': 'text/plain',
         'Accept': 'text/plain'
       },
       responseType: 'text'
-    });
-    
-    console.log('Normalization successful:', { 
-      language: response.headers['language'],
-      normalized: response.data.substring(0, 100) + '...' 
     });
     
     res
@@ -149,7 +165,6 @@ app.post('/api/normalize', async (req, res) => {
   }
 });
 
-// Здесь отправляются 2 текста на векторизацию и считается их близость
 app.post('/api/similarity', express.json(), async (req, res) => {
   try {
     const { text1, text2, modelId = 'default-model' } = req.body;
@@ -158,31 +173,20 @@ app.post('/api/similarity', express.json(), async (req, res) => {
       return res.status(400).json({ error: 'Both texts are required' });
     }
 
-    console.log('Similarity request:', { 
-      modelId,
-      length1: text1.length,
-      length2: text2.length
-    });
-
-    // Параллельно получаем эмбеддинги
     const [result1, result2] = await Promise.all([
       getEmbedding(text1, modelId),
       getEmbedding(text2, modelId)
     ]);
-    const embedding1 = result1.embeddings;
-    const dimension1 = result1.dimension;
-    const embedding2 = result2.embeddings;
-    const dimension2 = result2.dimension;
-    // Рассчитываем метрики
-    const cosSim = cosineSimilarity(embedding1, embedding2);
+
+    const cosSim = cosineSimilarity(result1.embeddings, result2.embeddings);
     const angularDist = Math.acos(Math.min(Math.max(cosSim, -1), 1));
 
     res.json({
       cosine_similarity: cosSim,
       angular_similarity_radians: angularDist,
       model_used: modelId,
-      embeddings: [embedding1, embedding2], // Опционально, если нужны клиенту
-      dimension: dimension1
+      embeddings: [result1.embeddings, result2.embeddings],
+      dimension: result1.dimension
     });
 
   } catch (error) {
@@ -190,51 +194,14 @@ app.post('/api/similarity', express.json(), async (req, res) => {
   }
 });
 
-// Отправка текста на эмбеддинг
-async function getEmbedding(text, modelId) {
-  // console.log(text);
-  const response = await axios.post(`${EMBEDDING_SERVICE_URL}/embedding`, text, {
-    headers: {
-      'Content-Type': 'text/plain',
-      'x-model-id': modelId
-    },
-  });
-  return response.data;
-}
-
-const storage = multer.diskStorage({
-destination: (req, file, cb) =>{
-    if (!fs.existsSync(SHARED_DATA_PATH)) {
-      fs.mkdirSync(SHARED_DATA_PATH, { recursive: true });
-    }
-    
-    // Создаем папку с UUID внутри shared_data
-    const corpusId = req.corpusId || uuidv4();
-    req.corpusId = corpusId; // Сохраняем ID для использования в основном обработчике
-    const corpusPath = path.join(SHARED_DATA_PATH, corpusId);
-    
-    if (!fs.existsSync(corpusPath)) {
-      fs.mkdirSync(corpusPath);
-    }
-    
-    cb(null, corpusPath);
-},
-filename: (req, file, cb) =>{
-    file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8')
-    cb(null, file.originalname);
-}
-});
-
-const upload = multer({ storage });
-
+// Загрузка файлов
 app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
   try {
     const modelId = req.headers['x-model-id'] || 'default-model';
     const ttlHours = req.headers['x-ttl-hours'] || 0;
     const corpusId = req.corpusId;
 
-    // Отправляем запрос в VBD сервис
-    const response = await axios.post(`${SEMANTIC_SERVICE_URL}/semantic/upload`, {}, {
+    const response = await axios.post(`${BACKEND_SERVICE_URL}/semantic/upload`, {}, {
       headers: {
         'x-corpus-path': `/${corpusId}`,
         'x-model-id': modelId,
@@ -244,7 +211,7 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
 
     res.status(202).json({
       ...response.data,
-      corpus_id: corpusId // Возвращаем ID созданной папки
+      corpus_id: corpusId
     });
 
   } catch (error) {
@@ -256,26 +223,15 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
   }
 });
 
-const createCorpusId = (req, res, next) => {
-  if (!req.corpusId) {
-    req.corpusId = uuidv4();
-  }
-  next();
-};
-
 app.post('/api/clusterization', createCorpusId, upload.array('files'), async (req, res) => {
   try {
     const modelId = req.headers['x-model-id'] || 'default-model';
     const ttlHours = req.headers['x-ttl-hours'] || 0;
-    
     const corpusId = req.corpusId;
-    
-    // Если передан заголовок x-corpus-path, используем его как имя папки внутри UUID
     const userCorpusPath = req.headers['x-corpus-path'];
     let finalCorpusPath = `/${corpusId}`;
     
     if (userCorpusPath) {
-      // Создаем подпапку внутри нашей UUID папки
       const userFolderPath = path.join(SHARED_DATA_PATH, corpusId, userCorpusPath);
       if (!fs.existsSync(userFolderPath)) {
         fs.mkdirSync(userFolderPath, { recursive: true });
@@ -283,10 +239,10 @@ app.post('/api/clusterization', createCorpusId, upload.array('files'), async (re
       finalCorpusPath = `/${corpusId}`;
     }
 
-    const response = await axios.post(`${SEMANTIC_SERVICE_URL}/clusterization`, req.body, {
+    const response = await axios.post(`${BACKEND_SERVICE_URL}/clusterization`, req.body, {
       headers: {
         'Content-Type': 'application/json',
-        'x-corpus-path': finalCorpusPath, 
+        'x-corpus-path': finalCorpusPath,
         'x-model-id': modelId,
         'x-ttl-hours': ttlHours
       }
@@ -306,7 +262,7 @@ app.post('/api/clusterization', createCorpusId, upload.array('files'), async (re
 
     res.status(202).json({
       ...response.data,
-      corpus_id: corpusId 
+      corpus_id: corpusId
     });
 
   } catch (error) {
@@ -326,171 +282,6 @@ app.post('/api/clusterization', createCorpusId, upload.array('files'), async (re
   }
 });
 
-function updateJobStatus(jobId, status, resultUrl = null) {
-  const jobIndex = jobsDB.jobs.findIndex(job => job.job_id === jobId);
-  if (jobIndex !== -1) {
-    jobsDB.jobs[jobIndex].status = status;
-    if (resultUrl) {
-      jobsDB.jobs[jobIndex].result_url = resultUrl;
-    }
-    console.log(`Updated job ${jobId} status to: ${status}`);
-    return true;
-  }
-  return false;
-}
-
-app.get('/api/jobs/:jobId', async (req, res) => {
-  try {
-    const response = await axios.get(`${SEMANTIC_SERVICE_URL}/jobs/${req.params.jobId}`);
-    
-    // ОБНОВЛЯЕМ СТАТУС JOB В БАЗЕ ДАННЫХ
-    const jobIndex = jobsDB.jobs.findIndex(job => job.job_id === req.params.jobId);
-    if (jobIndex !== -1) {
-      jobsDB.jobs[jobIndex].status = response.data.status;
-      if (response.data.result_url) {
-        jobsDB.jobs[jobIndex].result_url = response.data.result_url;
-      }
-      console.log(`Updated job ${req.params.jobId} status to: ${response.data.status}`);
-    }
-    
-    res.json(response.data);
-  } catch (error) {
-    console.error('Job status error:', error);
-    res.status(500).json({
-      error: 'Failed to get job status',
-      message: error.message
-    });
-  }
-});
-
-app.get('/api/result', async (req, res) => {
-  try {  
-    const response = await axios.get(req.headers['x-result-url']);
-    res.json(response.data);
-  } catch (error) {
-    console.error('Results error:', error);
-    res.status(500).json({
-      error: 'Failed to get results',
-      message: error.message
-    });
-  }
-});
-
-// Поиск по корпусу
-app.post('/api/semantic/search', express.text(), async (req, res) => {
-  try {
-    const response = await axios.post(`${SEMANTIC_SERVICE_URL}/semantic/search`, req.body, {
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'x-corpus-id': req.headers['x-corpus-id'],
-        'x-result-amount': req.headers['x-result-amount'] || 5,
-        'x-model-id': req.headers['x-model-id']
-      }
-    });
-    
-    res.json(response.data);
-  } catch (error) {
-    console.error('Search error:', error);
-    res.status(500).json({
-      error: 'Search failed',
-      message: error.message
-    });
-  }
-});
-
-// Управление корпусами
-app.get('/api/semantic/corpora', async (req, res) => {
-  try {
-    const response = await axios.get(`${SEMANTIC_SERVICE_URL}/semantic/corpora`);
-    res.json(response.data);
-  } catch (error) {
-    console.error('Corpora list error:', error);
-    res.status(500).json({
-      error: 'Failed to get corpora list',
-      message: error.message
-    });
-  }
-});
-
-app.delete('/api/semantic/corpora/:corpusId', async (req, res) => {
-  try {
-    const response = await axios.delete(`${SEMANTIC_SERVICE_URL}/semantic/corpora/${req.params.corpusId}`);
-    res.json(response.data);
-  } catch (error) {
-    console.error('Delete corpus error:', error);
-    res.status(500).json({
-      error: 'Failed to delete corpus',
-      message: error.message
-    });
-  }
-});
-
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    services: {
-      embedding: `${EMBEDDING_SERVICE_URL}/embedding`,
-      similarity: `${EMBEDDING_SERVICE_URL}/similarity`,
-      normalization: `${NORMALIZATION_SERVICE_URL}/normalize`
-    },
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Server error:', err);
-  res.status(500).json({
-    error: 'Internal server error',
-    message: err.message
-  });
-});
-
-// Получение списка моделей
-app.get('/api/models', async (req, res) => {
-  try {
-
-    const models = await axios.get(`${EMBEDDING_SERVICE_URL}/models`);
-    res.json(models.data);
-
-  } catch (error) {
-    handleProxyError(error, 'Models list', res);
-  }
-});
-
-
-
-app.get('/api/clusterization/history', (req, res) => {
-  try {
-    console.log('GET /api/clusterization/history called');
-    
-    const { limit } = req.query;
-    
-    // Фильтруем только задачи кластеризации
-    let clusterJobs = jobsDB.jobs.filter(job => job.type === 'clusterization');
-    
-    // Сортируем по дате (новые сначала)
-    clusterJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    
-    // Лимитируем результаты
-    if (limit) {
-      const limitNum = parseInt(limit);
-      clusterJobs = clusterJobs.slice(0, limitNum);
-    }
-    
-    console.log(`Returning ${clusterJobs.length} clusterization jobs`);
-    res.json(clusterJobs);
-    
-  } catch (error) {
-    console.error('Error in /api/clusterization/history:', error);
-    res.status(500).json({ 
-      error: 'Internal server error',
-      message: error.message
-    });
-  }
-});
-
 app.post('/api/classification', upload.array('files'), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
@@ -506,8 +297,7 @@ app.post('/api/classification', upload.array('files'), async (req, res) => {
       return res.status(400).json({ error: 'x-clustering-job-id header is required' });
     }
 
-    // Отправляем запрос в бэкенд разработчика
-    const response = await axios.post(`${SEMANTIC_SERVICE_URL}/classification`, {}, {
+    const response = await axios.post(`${BACKEND_SERVICE_URL}/classification`, {}, {
       headers: {
         'x-corpus-path': corpusPath,
         'x-model-id': modelId,
@@ -517,7 +307,6 @@ app.post('/api/classification', upload.array('files'), async (req, res) => {
       }
     });
 
-    // Сохраняем задание в базу данных
     const jobData = {
       job_id: response.data.job_id,
       type: 'classification',
@@ -565,8 +354,7 @@ app.post('/api/classification/grnti', upload.array('files'), async (req, res) =>
       return res.status(400).json({ error: 'x-clustering-job-id header is required' });
     }
 
-    // Отправляем запрос в бэкенд разработчика
-    const response = await axios.post(`${SEMANTIC_SERVICE_URL}/classification/grnti`, {}, {
+    const response = await axios.post(`${BACKEND_SERVICE_URL}/classification/grnti`, {}, {
       headers: {
         'x-corpus-path': corpusPath,
         'x-model-id': modelId,
@@ -576,7 +364,6 @@ app.post('/api/classification/grnti', upload.array('files'), async (req, res) =>
       }
     });
 
-    // Сохраняем задание в базу данных
     const jobData = {
       job_id: response.data.job_id,
       type: 'classification/grnti',
@@ -609,130 +396,13 @@ app.post('/api/classification/grnti', upload.array('files'), async (req, res) =>
   }
 });
 
-// Прокси для оценки точности
-app.post('/api/evaluation/precision', async (req, res) => {
-    try {
-        const { 'x-classification-job-id': jobId, 'x-evaluation-type': evalType } = req.headers;
-        
-        if (!jobId || !evalType) {
-            return res.status(400).json({ error: 'Missing required headers' });
-        }
-        
-        // Отправляем запрос в бэкенд-сервис
-        const response = await axios.post('http://back-service:3000/api/evaluation/precision', {}, {
-            headers: {
-                'x-classification-job-id': jobId,
-                'x-evaluation-type': evalType,
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        res.json(response.data);
-        
-    } catch (error) {
-        console.error('Precision evaluation proxy error:', error);
-        
-        if (error.response?.status === 404) {
-            return res.status(404).json({ error: 'Classification job not found' });
-        }
-        
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-app.post('/api/evaluation/recall', async (req, res) => {
-    try {
-        const { 'x-classification-job-id': jobId, 'x-evaluation-type': evalType } = req.headers;
-        
-        if (!jobId || !evalType) {
-            return res.status(400).json({ error: 'Missing required headers' });
-        }
-        
-        // Отправляем запрос в бэкенд-сервис
-        const response = await axios.post('http://back-service:3000/api/evaluation/recall', {}, {
-            headers: {
-                'x-classification-job-id': jobId,
-                'x-evaluation-type': evalType,
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        res.json(response.data);
-        
-    } catch (error) {
-        console.error('Precision evaluation proxy error:', error);
-        
-        if (error.response?.status === 404) {
-            return res.status(404).json({ error: 'Classification job not found' });
-        }
-        
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-app.get('/api/classification/history', (req, res) => {
-  try {
-    console.log('GET /api/classification/history called');
-    
-    const { limit } = req.query;
-    
-    // Фильтруем только задачи классификации
-    let classificationJobs = jobsDB.jobs.filter(job => 
-      job.type === 'classification' || job.type === 'classification/grnti'
-    );
-    
-    // Сортируем по дате (новые сначала)
-    classificationJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    
-    // Лимитируем результаты
-    if (limit) {
-      const limitNum = parseInt(limit);
-      classificationJobs = classificationJobs.slice(0, limitNum);
-    }
-    
-    console.log(`Returning ${classificationJobs.length} classification jobs`);
-    res.json(classificationJobs);
-    
-  } catch (error) {
-    console.error('Error in /api/classification/history:', error);
-    res.status(500).json({ 
-      error: 'Internal server error',
-      message: error.message
-    });
-  }
-});
-
-app.get('/api/grnti-codes', async (req, res) => {
-    try {
-        // Здесь можно загружать данные из БД или файла
-        const grntiCodes = {
-            "76.01.00": {
-                "name": "Общие вопросы военной науки и техники",
-                "description": "Общие вопросы военной науки, военной техники, военного дела"
-            },
-            "76.03.00": {
-                "name": "Военное искусство",
-                "description": "Военное искусство, стратегия, тактика, оперативное искусство"
-            },
-            // ... другие коды
-        };
-        
-        res.json(grntiCodes);
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to load GRNTI codes' });
-    }
-});
-
-// Прокси-запрос к бэкенду для дообучения
 app.post('/api/fine-tuning/start', upload.array('files'), async (req, res) => {
   try {
     const baseModelId = req.headers['x-base-model-id'];
     const newModelName = req.headers['x-new-model-name'];
     const corpusId = req.corpusId;
 
-
-    // Отправляем запрос на бэкенд
-    const backendResponse = await fetch(`${SEMANTIC_SERVICE_URL}/fine-tuning/start`, {
+    const backendResponse = await fetch(`${BACKEND_SERVICE_URL}/fine-tuning/start`, {
       method: 'POST',
       headers: {
         'X-Base-Model-ID': baseModelId,
@@ -748,7 +418,7 @@ app.post('/api/fine-tuning/start', upload.array('files'), async (req, res) => {
     const result = await backendResponse.json();
     res.json({
       ...result,
-      corpus_id: corpusId // Возвращаем ID созданной папки
+      corpus_id: corpusId
     });
     
   } catch (error) {
@@ -757,10 +427,342 @@ app.post('/api/fine-tuning/start', upload.array('files'), async (req, res) => {
   }
 });
 
+// Evaluation routes
+app.post('/api/evaluation/precision', async (req, res) => {
+  try {
+    const { 'x-classification-job-id': jobId, 'x-evaluation-type': evalType } = req.headers;
+    
+    if (!jobId || !evalType) {
+      return res.status(400).json({ error: 'Missing required headers' });
+    }
+    
+    const response = await axios.post(`${BACKEND_SERVICE_URL}/evaluation/precision`, {}, {
+      headers: {
+        'x-classification-job-id': jobId,
+        'x-evaluation-type': evalType,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    res.json(response.data);
+    
+  } catch (error) {
+    console.error('Precision evaluation proxy error:', error);
+    
+    if (error.response?.status === 404) {
+      return res.status(404).json({ error: 'Classification job not found' });
+    }
+    
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/evaluation/recall', async (req, res) => {
+  try {
+    const { 'x-classification-job-id': jobId, 'x-evaluation-type': evalType } = req.headers;
+    
+    if (!jobId || !evalType) {
+      return res.status(400).json({ error: 'Missing required headers' });
+    }
+    
+    const response = await axios.post(`${BACKEND_SERVICE_URL}/evaluation/recall`, {}, {
+      headers: {
+        'x-classification-job-id': jobId,
+        'x-evaluation-type': evalType,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    res.json(response.data);
+    
+  } catch (error) {
+    console.error('Recall evaluation proxy error:', error);
+    
+    if (error.response?.status === 404) {
+      return res.status(404).json({ error: 'Classification job not found' });
+    }
+    
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Поиск
+app.post('/api/semantic/search', express.text(), async (req, res) => {
+  try {
+    const response = await axios.post(`${BACKEND_SERVICE_URL}/semantic/search`, req.body, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'x-corpus-id': req.headers['x-corpus-id'],
+        'x-result-amount': req.headers['x-result-amount'] || 5,
+        'x-model-id': req.headers['x-model-id']
+      }
+    });
+    
+    res.json(response.data);
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({
+      error: 'Search failed',
+      message: error.message
+    });
+  }
+});
+
+// Асинхрон
+app.get('/api/jobs/:jobId', async (req, res) => {
+  try {
+    const response = await axios.get(`${BACKEND_SERVICE_URL}/jobs/${req.params.jobId}`);
+    
+    const jobIndex = jobsDB.jobs.findIndex(job => job.job_id === req.params.jobId);
+    if (jobIndex !== -1) {
+      jobsDB.jobs[jobIndex].status = response.data.status;
+      if (response.data.result_url) {
+        jobsDB.jobs[jobIndex].result_url = response.data.result_url;
+      }
+    }
+    
+    res.json(response.data);
+  } catch (error) {
+    console.error('Job status error:', error);
+    res.status(500).json({
+      error: 'Failed to get job status',
+      message: error.message
+    });
+  }
+});
+
+app.get('/api/result', async (req, res) => {
+    try {
+        let resultUrl = req.headers['x-result-url'];
+        
+        if (!resultUrl) {
+            return res.status(400).json({ error: 'Missing x-result-url header' });
+        }
+
+        console.log("Processing result URL:", resultUrl);
+
+        let response;
+        
+        try {
+            // Первая попытка - прямой запрос
+            response = await axios.get(resultUrl, { 
+                timeout: 10000,
+                validateStatus: () => true
+            });
+            console.log("Primary request status:", response.status);
+        } catch (primaryError) {
+            console.log("Primary request failed with error:", primaryError.message);
+            // Если это сетевая ошибка (DNS, таймаут и т.д.), пробуем фоллбэк
+            if (primaryError.code === 'ENOTFOUND' || primaryError.code === 'ECONNREFUSED' || 
+                primaryError.code === 'ECONNABORTED' || primaryError.code === 'ETIMEDOUT' || primaryError.code === 'ERR_INVALID_URL') {
+                
+                console.log("Network error detected, trying fallback...");
+                const fallbackUrl = await buildFallbackUrl(resultUrl);
+                console.log("Fallback URL:", fallbackUrl);
+                
+                response = await axios.get(fallbackUrl, {
+                    timeout: 10000,
+                    validateStatus: () => true
+                });
+                console.log("Fallback request status:", response.status);
+            } else {
+                // Если это не сетевая ошибка, пробрасываем дальше
+                throw primaryError;
+            }
+        }
+
+        // Если после всех попыток получили HTTP ошибку
+        if (response.status >= 400) {
+            return res.status(response.status).json({
+                error: 'Failed to get results',
+                message: response.statusText,
+                details: response.data
+            });
+        }
+
+        // Успешный ответ
+        res.json(response.data);
+        
+    } catch (error) {
+        console.error('Results error:', error);
+        
+        // Если это таймаут
+        if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+            return res.status(504).json({ 
+                error: 'Gateway Timeout',
+                message: 'Result service unavailable'
+            });
+        }
+        
+        res.status(500).json({
+            error: 'Failed to get results',
+            message: error.message
+        });
+    }
+});
+
+// Функция построения фоллбэк URL
+async function buildFallbackUrl(originalUrl) {
+    try {
+        if (!originalUrl || typeof originalUrl !== 'string') {
+            throw new Error('Invalid resultUrl provided');
+        }
+        
+        console.log("Building fallback URL from:", originalUrl);
+        
+        // Если это HTTP ссылка, заменяем домен
+        if (originalUrl.startsWith('http')) {
+            try {
+                const urlObj = new URL(originalUrl);
+                const fallbackUrl = `http://back-service:3000${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
+                console.log("Built HTTP fallback URL:", fallbackUrl);
+                return fallbackUrl;
+            } catch (e) {
+                console.error('URL parsing error:', e);
+                // Если URL невалидный, считаем что это endpoint
+                const fallbackUrl = `http://back-service:3000${originalUrl.startsWith('/') ? '' : '/'}${originalUrl}`;
+                console.log("Built fallback from invalid URL:", fallbackUrl);
+                return fallbackUrl;
+            }
+        }
+        
+        // Если это относительный путь
+        const fallbackUrl = `http://back-service:3000${originalUrl.startsWith('/') ? '' : '/'}${originalUrl}`;
+        console.log("Built relative path fallback URL:", fallbackUrl);
+        return fallbackUrl;
+        
+    } catch (error) {
+        console.error('Error in buildFallbackUrl:', error);
+        throw error;
+    }
+}
+
+// History routes
+app.get('/api/clusterization/history', (req, res) => {
+  try {
+    const { limit } = req.query;
+    
+    let clusterJobs = jobsDB.jobs.filter(job => job.type === 'clusterization');
+    clusterJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    
+    if (limit) {
+      const limitNum = parseInt(limit);
+      clusterJobs = clusterJobs.slice(0, limitNum);
+    }
+    
+    res.json(clusterJobs);
+    
+  } catch (error) {
+    console.error('Error in /api/clusterization/history:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message
+    });
+  }
+});
+
+app.get('/api/classification/history', (req, res) => {
+  try {
+    const { limit } = req.query;
+    
+    let classificationJobs = jobsDB.jobs.filter(job => 
+      job.type === 'classification' || job.type === 'classification/grnti'
+    );
+    
+    classificationJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    
+    if (limit) {
+      const limitNum = parseInt(limit);
+      classificationJobs = classificationJobs.slice(0, limitNum);
+    }
+    
+    res.json(classificationJobs);
+    
+  } catch (error) {
+    console.error('Error in /api/classification/history:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message
+    });
+  }
+});
+
+// Simple GET routes
+app.get('/api/semantic/corpora', async (req, res) => {
+  try {
+    const response = await axios.get(`${BACKEND_SERVICE_URL}/semantic/corpora`);
+    res.json(response.data);
+  } catch (error) {
+    console.error('Corpora list error:', error);
+    res.status(500).json({
+      error: 'Failed to get corpora list',
+      message: error.message
+    });
+  }
+});
+
+app.delete('/api/semantic/corpora/:corpusId', async (req, res) => {
+  try {
+    const response = await axios.delete(`${BACKEND_SERVICE_URL}/semantic/corpora/${req.params.corpusId}`);
+    res.json(response.data);
+  } catch (error) {
+    console.error('Delete corpus error:', error);
+    res.status(500).json({
+      error: 'Failed to delete corpus',
+      message: error.message
+    });
+  }
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    services: {
+      embedding: `${BACKEND_SERVICE_URL}/embedding`,
+      similarity: `${BACKEND_SERVICE_URL}/similarity`,
+      normalization: `${BACKEND_SERVICE_URL}/normalize`
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/models', async (req, res) => {
+  try {
+    const models = await axios.get(`${BACKEND_SERVICE_URL}/models`);
+    res.json(models.data);
+  } catch (error) {
+    handleProxyError(error, 'Models list', res);
+  }
+});
+
+app.get('/api/grnti-codes', async (req, res) => {
+  try {
+    const grntiCodes = {
+      "76.01.00": {
+        "name": "Общие вопросы военной науки и техники",
+        "description": "Общие вопросы военной науки, военной техники, военного дела"
+      },
+      "76.03.00": {
+        "name": "Военное искусство",
+        "description": "Военное искусство, стратегия, тактика, оперативное искусство"
+      },
+    };
+    
+    res.json(grntiCodes);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load GRNTI codes' });
+  }
+});
+
+// Error handling
+app.use((err, req, res, next) => {
+  console.error('Server error:', err);
+  res.status(500).json({
+    error: 'Internal server error',
+    message: err.message
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
-  console.log('Configured services:');
-  console.log(`- Embedding: ${EMBEDDING_SERVICE_URL}/embedding`);
-  console.log(`- Similarity: ${EMBEDDING_SERVICE_URL}/similarity`);
-  console.log(`- Normalization: ${NORMALIZATION_SERVICE_URL}/normalize`);
 });

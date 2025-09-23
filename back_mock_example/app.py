@@ -131,7 +131,7 @@ def get_job_status(job_id):
 
         return jsonify({
             "status": "completed",
-            "result_url": f"http://back-service:3000/api/jobs/{job_id}/result"
+            "result_url": f"/api/jobs/{job_id}/result"
         })
 
 

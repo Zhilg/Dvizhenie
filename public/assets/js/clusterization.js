@@ -1,5 +1,3 @@
-// Здесь будет ваш JavaScript код
-// Глобальные переменные состояния
 let currentFolder = null;
 let clustersData = null;
 let currentClusterId = null;
@@ -13,7 +11,6 @@ let availableModels = [];
 let isCompactMode = false;
 let maxDepth = 0;
 
-// DOM элементы
 const selectFolderBtn = document.getElementById('selectFolderBtn');
 const exportBtn = document.getElementById('exportBtn');
 const timerElement = document.getElementById('timer');
@@ -306,54 +303,56 @@ clearInterval(timerInterval);
 }
 
 async function getClusteringResults(resultUrl) {
-try {
-showStatus('Получение результатов...', 'info');
+    try {
+    showStatus('Получение результатов...', 'info');
 
-const response = await fetch("/api/result", {
-method: "GET",
-headers: {
-    "Content-Type": "application/json",
-    "x-result-url": resultUrl
-},
-});
+    const response = await fetch("/api/result", {
+    method: "GET",
+    headers: {
+        "Content-Type": "application/json",
+        "x-result-url": resultUrl
+    },
+    });
 
-if (!response.ok) {
-const errorText = await response.text();
-throw new Error(`HTTP ${response.status}: ${errorText}`);
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    const results = await response.json();
+
+    // Сохраняем данные кластеров
+    clustersData = results;
+
+    // Останавливаем таймер
+    clearInterval(timerInterval);
+
+    // Разблокируем кнопки
+    selectFolderBtn.disabled = false;
+    startClusteringBtn.disabled = false;
+    startClusteringBtn.innerHTML = '🚀 Запустить кластеризацию';
+
+    // Активируем кнопку экспорта
+    exportBtn.disabled = false;
+
+    // Отображаем кластеры
+    displayClusters(results);
+
+    showStatus('Кластеризация завершена успешно!', 'success');
+
+    } catch (error) {
+    console.error('Error getting results:', error);
+    showStatus('Ошибка получения результатов: ' + error.message, 'error');
+
+    // Все равно разблокируем UI при ошибке
+    selectFolderBtn.disabled = false;
+    startClusteringBtn.disabled = false;
+    startClusteringBtn.innerHTML = '🚀 Запустить кластеризацию';
+    clearInterval(timerInterval);
+    }
 }
 
-const results = await response.json();
 
-// Сохраняем данные кластеров
-clustersData = results;
-
-// Останавливаем таймер
-clearInterval(timerInterval);
-
-// Разблокируем кнопки
-selectFolderBtn.disabled = false;
-startClusteringBtn.disabled = false;
-startClusteringBtn.innerHTML = '🚀 Запустить кластеризацию';
-
-// Активируем кнопку экспорта
-exportBtn.disabled = false;
-
-// Отображаем кластеры
-displayClusters(results);
-
-showStatus('Кластеризация завершена успешно!', 'success');
-
-} catch (error) {
-console.error('Error getting results:', error);
-showStatus('Ошибка получения результатов: ' + error.message, 'error');
-
-// Все равно разблокируем UI при ошибке
-selectFolderBtn.disabled = false;
-startClusteringBtn.disabled = false;
-startClusteringBtn.innerHTML = '🚀 Запустить кластеризацию';
-clearInterval(timerInterval);
-}
-}
 
 // Функция для отображения кластеров в дереве
 function displayClusters(clustersData) {

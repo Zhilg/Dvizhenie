@@ -1,8 +1,8 @@
 services:
   back-service:
-    image: back-service # # # Или любое другое имя вашего контейнера
+    image: back-service # Или любое другое имя вашего контейнера
     ports:
-      - "3000:3000" # Разработчик ОБЯЗАН использовать порт 3000 внутри контейнера
+      - "3000:3000" # Разработчик ОБЯЗАН использовать порт 3000 внутри своего контейнера
     volumes:
       - ./shared_data:/shared_data
     networks:
@@ -19,15 +19,24 @@ services:
     restart: unless-stopped
 
   dvizhenie:
-    image: dvizhenie
+    build: 
+      context: . 
+      dockerfile: Dockerfile
     ports:
       - "4000:4000"
     volumes:
+      # hot-reload
+      - ./:/app
       - ./shared_data:/app/shared_data
+      - /app/node_modules
+    working_dir: /app
     networks:
       - new_network
     depends_on:
       - back-service
+    environment:
+      - NODE_ENV=development
+    restart: unless-stopped
 
 networks:
   new_network:
@@ -39,4 +48,4 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: ./shared_data 
+      device: ./shared_data
