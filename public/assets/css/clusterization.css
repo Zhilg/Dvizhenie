@@ -325,6 +325,7 @@ footer {
 .chart-container {
     height: 200px;
     position: relative;
+    overflow: auto;
 }
 
 .loading {

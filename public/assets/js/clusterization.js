@@ -222,6 +222,9 @@ async function checkClusteringStatus() {
 if (!currentJobId) return;
 
 try {
+     if (currentJobId.startsWith('/')) {
+        currentJobId = currentJobId.substring(1);
+    }
     const response = await fetch(`${API_BASE_URL}/jobs/${currentJobId}`);
     if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
