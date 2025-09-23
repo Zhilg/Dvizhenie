@@ -245,21 +245,35 @@ async function getUploadResults(resultUrl) {
     }
 }
 
-// Фолбэк-функция для запроса к внутреннему адресу контейнера
+// либо с бэкенда пришла неправильная ссылка, либо пришел только эндпоинт
 async function getUploadResultsFallback(resultUrl) {
     try {
         console.log("Fallback called with resultUrl:", resultUrl);
         
-        // Проверяем валидность URL перед использованием
         if (!resultUrl || typeof resultUrl !== 'string') {
             throw new Error('Invalid resultUrl provided');
         }
         
-        // Если это относительный путь, преобразуем в абсолютный
         let actualUrl = resultUrl;
-        if (!resultUrl.startsWith('http')) {
+        
+        // Если это HTTP ссылка, пытаемся разобрать и заменить домен
+        if (resultUrl.startsWith('http')) {
+            try {
+                const urlObj = new URL(resultUrl);
+                // Заменяем хост на наш бэкенд, сохраняя путь и параметры
+                actualUrl = `http://back-service:3000${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
+                console.log("Replaced domain with back-service:", actualUrl);
+            } catch (e) {
+                // Если URL невалидный, считаем что это endpoint
+                console.log("Invalid URL, treating as endpoint:", resultUrl);
+                actualUrl = `http://back-service:3000${resultUrl.startsWith('/') ? '' : '/'}${resultUrl}`;
+            }
+        } else {
+            // Если это относительный путь, добавляем наш бэкенд
             actualUrl = `http://back-service:3000${resultUrl.startsWith('/') ? '' : '/'}${resultUrl}`;
         }
+        
+        console.log("Final URL to fetch:", actualUrl);
         
         const response = await fetch("/api/result", {
             method: "GET",
