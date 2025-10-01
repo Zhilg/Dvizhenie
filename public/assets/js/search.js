@@ -14,7 +14,6 @@ function setupEventListeners() {
     document.getElementById('showHistoryBtn').addEventListener('click', showHistoryModal);
 }
 
-// Load available models (for display purposes)
 async function loadModels() {
     try {
         const response = await fetch(`${BASE_URL}/models`);

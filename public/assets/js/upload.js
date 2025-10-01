@@ -91,7 +91,7 @@ async function uploadDocuments() {
         const data = await response.json();
         currentJobId = data.job_id;
         currentJobId = currentJobId.replace("/", "");
-        
+                
         document.getElementById('uploadResults').innerHTML = `
             <div class="alert alert-info">
                 <h4 class="alert-heading">Загрузка начата</h4>
@@ -186,10 +186,10 @@ async function getUploadResults(resultUrl) {
 async function processSuccessfulResponse(response) {
     const results = await response.json();
     const modelId = document.getElementById('modelSelect').value;
+    console.log(results);
     
-    // Сохраняем в прокси (и в localStorage как fallback)
-    await saveCorpusToProxy(results.corpus_id, modelId, results.file_count);
-    saveCorpusToHistory(results.corpus_id, modelId, results.file_count);
+    await saveCorpusToProxy(results.corpus_id, modelSelect.value, results.files);
+    saveCorpusToHistory(results.corpus_id, modelSelect.value, results.files);
     
     // Показываем результаты
     document.getElementById('uploadResults').innerHTML = `
@@ -205,7 +205,7 @@ async function processSuccessfulResponse(response) {
     return results;
 }
 
-function saveCorpusToHistory(corpusId, modelId, fileCount) {
+function saveCorpusToHistory(corpusId,modelId, files) {
     const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
     
     const existingIndex = history.findIndex(item => item.id === corpusId);
@@ -213,7 +213,7 @@ function saveCorpusToHistory(corpusId, modelId, fileCount) {
     const corpusInfo = {
         id: corpusId,
         model: modelId,
-        files: fileCount,
+        files: files,
         date: new Date().toISOString()
     };
     
@@ -246,12 +246,12 @@ function showError(message) {
     }, 5000);
 }
 
-async function saveCorpusToProxy(corpusId, modelId, fileCount) {
+async function saveCorpusToProxy(corpusId, modelId, files) {
     try {
         const corpusInfo = {
             id: corpusId,
             model: modelId,
-            files: fileCount,
+            files: files,
             date: new Date().toISOString()
         };
 

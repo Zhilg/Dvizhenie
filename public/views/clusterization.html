@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Кластеризация документов</title>
     <link rel="stylesheet" href="../assets/css/clusterization.css">
-
 </head>
 <body>
     <div class="container">
@@ -17,21 +16,25 @@
             </div>
         </header>
         
-        <aside class="sidebar">
-            <div class="control-group">
-                <label for="modelSelect">Модель кластеризации:</label>
-                <select id="modelSelect" class="form-control">
-                    <option value="">Загрузка моделей...</option>
-                </select>
+        <div id="noCorpusMessage" class="card hidden">
+            <div class="card-body text-center">
+                <h3 class="card-title">Корпусы не найдены</h3>
+                <p class="card-text">Для начала работы загрузите ваш первый корпус документов</p>
+                <a href="/upload" class="btn btn-primary btn-lg">
+                    <i class="bi bi-cloud-upload"></i> Загрузить первый корпус
+                </a>
             </div>
-            
+        </div>
+
+        <aside class="sidebar">            
             <div class="control-group">
-                <label>Выбор папки:</label>
-                <div class="folder-selector">
-                    <button id="selectFolderBtn" class="btn btn-primary">
-                        <span>📁</span> Выберите папку с документами
-                    </button>
-                    <div id="selectedFolder" class="selected-folder">Папка не выбрана</div>
+                <label for="corpusSelect">Выбор корпуса:</label>
+                <select id="corpusSelect" class="form-control">
+                    <option value="">Загрузка корпусов...</option>
+                </select>
+                <div id="noCorpusMessage" class="no-corpus-message" style="display: none;">
+                    <p>Корпусы не найдены</p>
+                    <a href="/upload" class="btn btn-primary">Перейти к загрузке</a>
                 </div>
             </div>
             
@@ -73,26 +76,26 @@
                     <div id="progressBar" class="progress-bar" style="width: 0%"></div>
                 </div>
             </div>
-            <div class="panel">
-            <div class="panel-header">
-                <span>Информация о кластере </span>
-                <span id="clusterInfo">Выберите кластер для просмотра деталей</span>
-            </div>
-            <div class="panel-body">
-                <div class="chart-container">
-                    <canvas id="similarityChart"></canvas>
-                </div>
-
-                <div id="visualizationsContainer" style="margin-top: 20px; display: none;">
-                    <h4>Визуализации кластеризации</h4>
-
-                </div>
-            </div>
-        </div>
             
             <div class="panel">
                 <div class="panel-header">
-                    <span>Документы в кластере (пока просмотра нет)</span>
+                    <span>Информация о кластере </span>
+                    <span id="clusterInfo">Выберите кластер для просмотра деталей</span>
+                </div>
+                <div class="panel-body">
+                    <div class="chart-container">
+                        <canvas id="similarityChart"></canvas>
+                    </div>
+
+                    <div id="visualizationsContainer" style="margin-top: 20px; display: none;">
+                        <h4>Визуализации кластеризации</h4>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">
+                    <span>Документы в кластере</span>
                 </div>
                 <div class="panel-body">
                     <table class="files-table">
@@ -126,7 +129,6 @@
                 </div>
             </div>
         </main>
-    
     </div>
 
     <script type="text/javascript" src="../assets/js/clusterization.js"></script>

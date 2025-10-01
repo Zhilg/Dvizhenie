@@ -226,7 +226,6 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
 
     res.status(202).json({
       ...response.data,
-      corpus_id: corpusId
     });
 
   } catch (error) {
@@ -242,7 +241,7 @@ app.post('/api/clusterization', async (req, res) => {
   try {
     const modelId = req.headers['x-model-id'] || 'default-model';
     const ttlHours = req.headers['x-ttl-hours'] || 0;
-    const corpusId = req.corpusId;
+    const corpusId = req.headers['x-corpus-path'];
 
     const response = await axios.post(`${BACKEND_SERVICE_URL}/clusterization`, {}, {
       headers: {
@@ -288,7 +287,6 @@ app.post('/api/clusterization', async (req, res) => {
 
 app.get('/corpus-history', async (req, res) => {
     try {
-        // corporaDB.corpora is already an array, no need to parse
         res.json(corporaDB.corpora);
     } catch (error) {
         console.error('Error reading corpus history:', error);

@@ -1,12 +1,14 @@
-let currentFolder = null;
+let currentCorpusId = null;
 let clustersData = null;
 let currentClusterId = null;
 let timerInterval = null;
 let startTime = null;
 let currentJobId = null;
 let availableModels = [];
+let corpusHistory = [];
+let modelSelect = null;
 
-const selectFolderBtn = document.getElementById('selectFolderBtn');
+const corpusSelect = document.getElementById('corpusSelect');
 const exportBtn = document.getElementById('exportBtn');
 const timerElement = document.getElementById('timer');
 const progressBar = document.getElementById('progressBar');
@@ -16,120 +18,109 @@ const filesTableBody = document.getElementById('filesTableBody');
 const previewContent = document.getElementById('previewContent');
 const statusMessage = document.getElementById('statusMessage');
 const statusText = document.getElementById('statusText');
-const modelSelect = document.getElementById('modelSelect');
 const startClusteringBtn = document.getElementById('startClusteringBtn');
 
 const API_BASE_URL = '/api';
+const BASE_URL = '/api';
 
 document.addEventListener('DOMContentLoaded', async () => {
     await loadModels();
-    setupFolderSelector();
+    await loadCorpusHistory();
     startClusteringBtn.addEventListener('click', startClustering);
     exportBtn.addEventListener('click', exportResults);
 });
 
 async function loadModels() {
     try {
-        const response = await fetch(`${API_BASE_URL}/models`);
+        const response = await fetch(`${BASE_URL}/models`);
+        if (response.ok) {
+            availableModels = await response.json();
+        }
+    } catch (error) {
+        console.error("Error loading models:", error);
+    }
+}
+
+function getModelNameById(modelId) {
+    const model = availableModels.find(m => m.model_id === modelId);
+    return model ? (model.model_name || model.model_id) : modelId;
+}
+
+async function loadCorpusHistory() {
+    try {
+        const response = await fetch('/corpus-history');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
-        availableModels = await response.json();
-        modelSelect.innerHTML = '<option value="">Выберите модель</option>';
-        availableModels.forEach(model => {
-            const option = document.createElement('option');
-            option.value = model.model_id;
-            option.textContent = model.model_name || model.model_id;
-            modelSelect.appendChild(option);
-        });
-    } catch (error) {
-        console.error('Error loading models:', error);
-        showStatus('Ошибка загрузки моделей', 'error');
-    }
-}
-
-function setupFolderSelector() {
-    const folderInput = document.createElement('input');
-    folderInput.type = 'file';
-    folderInput.style.display = 'none';
-    folderInput.webkitdirectory = true;
-    folderInput.directory = true;
-    folderInput.multiple = true;
-
-    folderInput.addEventListener('change', (event) => {
-        const files = event.target.files;
-        if (files.length > 0) {
-            const filePath = files[0].webkitRelativePath;
-            currentFolder = filePath.split('/')[0];
-            const folderDisplay = document.getElementById('selectedFolder');
-            if (folderDisplay) {
-                folderDisplay.textContent = `Выбрана папка: ${currentFolder}`;
-            }
-            showStatus(`Выбрана папка: ${currentFolder}`, 'success');
-        }
-    });
-
-    document.body.appendChild(folderInput);
-
-    selectFolderBtn.addEventListener('click', () => {
-        if (window.showDirectoryPicker) {
-            openModernFolderPicker();
+        corpusHistory = await response.json();
+        const corpusSelect = document.getElementById('corpusSelect');
+        const noCorpusMessage = document.getElementById('noCorpusMessage');
+        const mainContent = document.getElementById('mainContent'); // Add this container
+        
+        // Clear the selector
+        corpusSelect.innerHTML = '';
+        
+        if (!corpusHistory || corpusHistory.length === 0) {
+            // If no corpora, show full-page message and hide everything else
+            corpusSelect.style.display = 'none';
+            noCorpusMessage.style.display = 'block';
+            noCorpusMessage.style.textAlign = 'center';
+            noCorpusMessage.style.padding = '50px';
+            noCorpusMessage.style.fontSize = '1.5em';
+            
+            // Hide all other content
+            if (mainContent) mainContent.style.display = 'none';
+            
+            showStatus('Корпусы не найдены', 'warning');
+            return;
         } else {
-            folderInput.click();
+            // If corpora exist, show normal interface
+            corpusSelect.style.display = 'block';
+            noCorpusMessage.style.display = 'none';
+            if (mainContent) mainContent.style.display = 'block';
+            
+            corpusSelect.innerHTML = '<option value="">Выберите корпус</option>';
+            corpusHistory.forEach(corpus => {
+                console.log(corpus);
+                const option = document.createElement('option');
+                option.value = corpus.id;
+                option.textContent = corpus.name || `${corpus.id}. Модель ${getModelNameById(corpus.model)}. Дата создания ${corpus.date}. Файлов ${corpus.files}`;
+                option.dataset.corpusId = corpus.id;
+                option.dataset.modelId = corpus.model;
+                option.dataset.timestamp = corpus.date;
+                corpusSelect.appendChild(option);
+            });
         }
-    });
-}
-
-async function openModernFolderPicker() {
-    try {
-        const directoryHandle = await window.showDirectoryPicker();
-        const folderName = directoryHandle.name;
-        currentFolder = folderName;
         
-        const folderDisplay = document.getElementById('selectedFolder');
-        if (folderDisplay) {
-            folderDisplay.textContent = `Выбрана папка: ${folderName}`;
-        }
-        showStatus(`Выбрана папка: ${folderName}`, 'success');
-        
-        await scanDirectory(directoryHandle);
-    } catch (error) {
-        if (error.name !== 'AbortError') {
-            console.error('Folder picker error:', error);
-            showStatus('Ошибка выбора папки', 'error');
-        }
-    }
-}
-
-async function scanDirectory(directoryHandle) {
-    let fileCount = 0;
-    let txtFileCount = 0;
-    try {
-        for await (const entry of directoryHandle.values()) {
-            if (entry.kind === 'file') {
-                fileCount++;
-                if (entry.name.toLowerCase().endsWith('.txt')) {
-                    txtFileCount++;
-                }
+        corpusSelect.addEventListener('change', (event) => {
+            const selectedOption = event.target.options[event.target.selectedIndex];
+            currentCorpusId = selectedOption.dataset.corpusId;
+            modelSelect = selectedOption.dataset.modelId; // This preserves the selected model
+            
+            if (currentCorpusId && modelSelect) {
+                showStatus(`Выбран корпус: ${selectedOption.textContent}, модель установлена`, 'success');
+            } else if (currentCorpusId) {
+                showStatus(`Выбран корпус: ${selectedOption.textContent}`, 'success');
             }
-        }
-        showStatus(`Найдено файлов: ${fileCount}, текстовых: ${txtFileCount}`, 'info');
+        });
+        
     } catch (error) {
-        console.error('Directory scan error:', error);
+        console.error('Error loading corpus history:', error);
+        showStatus('Ошибка загрузки истории корпусов', 'error');
     }
 }
 
 async function startClustering() {
-    if (!currentFolder) {
-        showStatus('Сначала выберите папку', 'error');
+    if (!currentCorpusId) {
+        showStatus('Сначала выберите корпус', 'error');
         return;
     }
-    if (!modelSelect.value) {
+    if (!modelSelect) {
         showStatus('Выберите модель для кластеризации', 'error');
         return;
     }
 
     showStatus('Запуск кластеризации...', 'info');
-    selectFolderBtn.disabled = true;
+    corpusSelect.disabled = true;
     startClusteringBtn.disabled = true;
     startClusteringBtn.innerHTML = '<span class="loading"></span> Обработка...';
 
@@ -140,24 +131,16 @@ async function startClustering() {
     startTimer();
 
     try {
-        const formData = new FormData();
         
-        // Добавляем файлы из currentFolder (предполагается, что это массив файлов или FileList)
-        if (currentFolder.files) {
-            for (let i = 0; i < currentFolder.files.length; i++) {
-                formData.append('files', currentFolder.files[i]);
-            }
-        }
-
         const response = await fetch(`${API_BASE_URL}/clusterization`, {
             method: 'POST',
             headers: {
-                'x-model-id': modelSelect.value,
-                'x-ttl-hours': '0'
-            },
-            body: formData
+                'x-model-id': modelSelect,
+                'x-ttl-hours': '0',
+                'x-corpus-id': currentCorpusId
+            }
         });
-
+        console.log(modelSelect, currentCorpusId);
         if (!response.ok) {
             const errorText = await response.text();
             throw new Error(`HTTP ${response.status}: ${errorText}`);
@@ -229,7 +212,7 @@ async function getClusteringResults(resultUrl) {
         clustersData = results;
 
         clearInterval(timerInterval);
-        selectFolderBtn.disabled = false;
+        corpusSelect.disabled = false;
         startClusteringBtn.disabled = false;
         startClusteringBtn.innerHTML = '🚀 Запустить кластеризацию';
         exportBtn.disabled = false;
@@ -248,7 +231,7 @@ function displayClusters(clustersData) {
     clusterTree.innerHTML = '';
 
     if (!clustersData || !clustersData.data || !clustersData.data.children || clustersData.data.children.length === 0) {
-        clusterTree.innerHTML = '<div class="empty-folder">Папка пуста</div>';
+        clusterTree.innerHTML = '<div class="empty-folder">Кластеры не найдены</div>';
         showStatus('Кластеры не найдены в результатах', 'warning');
         return;
     }
@@ -343,7 +326,6 @@ function displayClusterInfo(cluster, clusterId) {
 function updateSimilarityChart(distribution) {
     const chartContainer = document.querySelector('.chart-container');
     
-    // Проверка входных данных
     if (!distribution || !Array.isArray(distribution) || distribution.length === 0) {
         chartContainer.innerHTML = `
             <div style="padding: 20px; text-align: center; color: #666;">
@@ -353,13 +335,11 @@ function updateSimilarityChart(distribution) {
         return;
     }
     
-    // Нормализация данных
     const sum = distribution.reduce((acc, val) => acc + val, 0);
     const normalizedDistribution = sum > 0 ? 
         distribution.map(val => val / sum) : 
         distribution.map(() => 1 / distribution.length);
     
-    // Подписи для интервалов
     const intervalLabels = ['0-0.2', '0.2-0.4', '0.4-0.6', '0.6-0.8', '0.8-1.0'];
     
     chartContainer.innerHTML = `
@@ -378,7 +358,7 @@ function updateSimilarityChart(distribution) {
         <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 15px;">
             ${normalizedDistribution.map((value, index) => {
                 const percentage = (value * 100).toFixed(1);
-                const barWidth = value * 100; // Ширина в процентах
+                const barWidth = value * 100;
                 
                 return `
                 <div style="display: flex; align-items: center; gap: 10px;">
@@ -446,7 +426,7 @@ function updateSimilarityChart(distribution) {
             background: white; 
             border-radius: 4px; 
             font-size: 12px;
-            border: 1px solid #e0e0e0;
+            border: 1px solid #e6dedeff;
         ">
             <strong>Статистика:</strong> 
             Всего элементов: ${distribution.reduce((acc, val) => acc + val, 0).toFixed(0)} |
@@ -458,15 +438,14 @@ function updateSimilarityChart(distribution) {
 
 function getColorByIndex(index) {
     const colors = [
-        '#3498db', // синий (низкая схожесть)
+        '#3498db',
         '#2980b9', 
-        '#f39c12', // оранжевый (средняя)
+        '#f39c12',
         '#e74c3c', 
-        '#c0392b'  // красный (высокая схожесть)
+        '#c0392b'
     ];
     return colors[index] || '#3498db';
 }
-
 
 function displayClusterDocuments(documents) {
     if (!documents || documents.length === 0) {
@@ -515,13 +494,13 @@ function displayVisualizations(visualizationData) {
         let html = '<h4 style="margin-bottom: 15px; color: #2c3e50;">🌐 Визуализации кластеризации</h4><div style="display: flex; flex-wrap: wrap; gap: 15px;">';
 
         if (visualizationData.graphic_representation) {
-            html += `<div class="visualization-item"><h4>📊 Графическая визуализация</h4><a href="${visualizationData.graphic_representation}" target="_blank">${visualizationData.graphic_representation}</a></div>`;
+            html += `<div class="visualization-item"><h4>Графическая визуализация</h4><a href="${visualizationData.graphic_representation}" target="_blank">${visualizationData.graphic_representation}</a></div>`;
         }
         if (visualizationData.planetar_representation) {
-            html += `<div class="visualization-item"><h4>🪐 Планетарная модель</h4><a href="${visualizationData.planetar_representation}" target="_blank">${visualizationData.planetar_representation}</a></div>`;
+            html += `<div class="visualization-item"><h4>Планетарная модель</h4><a href="${visualizationData.planetar_representation}" target="_blank">${visualizationData.planetar_representation}</a></div>`;
         }
         if (visualizationData['drill-down_representation']) {
-            html += `<div class="visualization-item"><h4>🔍 Drill-down модель</h4><a href="${visualizationData['drill-down_representation']}" target="_blank">${visualizationData['drill-down_representation']}</a></div>`;
+            html += `<div class="visualization-item"><h4>Drill-down модель</h4><a href="${visualizationData['drill-down_representation']}" target="_blank">${visualizationData['drill-down_representation']}</a></div>`;
         }
 
         html += '</div>';
@@ -557,7 +536,7 @@ async function exportResults() {
         showStatus('Подготовка экспорта...', 'info');
         const exportData = {
             timestamp: new Date().toISOString(),
-            folder: currentFolder,
+            corpus_id: currentCorpusId,
             model: modelSelect.value,
             clusters: clustersData.data.children || []
         };
@@ -611,8 +590,8 @@ function formatFileSize(bytes) {
 }
 
 function resetUI() {
-    selectFolderBtn.disabled = false;
+    corpusSelect.disabled = false;
     startClusteringBtn.disabled = false;
-    startClusteringBtn.innerHTML = '🚀 Запустить кластеризацию';
+    startClusteringBtn.innerHTML = 'Запустить кластеризацию';
     clearInterval(timerInterval);
 }
