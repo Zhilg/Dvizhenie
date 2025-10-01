@@ -140,14 +140,22 @@ async function startClustering() {
     startTimer();
 
     try {
+        const formData = new FormData();
+        
+        // Добавляем файлы из currentFolder (предполагается, что это массив файлов или FileList)
+        if (currentFolder.files) {
+            for (let i = 0; i < currentFolder.files.length; i++) {
+                formData.append('files', currentFolder.files[i]);
+            }
+        }
+
         const response = await fetch(`${API_BASE_URL}/clusterization`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'x-corpus-path': currentFolder,
                 'x-model-id': modelSelect.value,
                 'x-ttl-hours': '0'
             },
+            body: formData
         });
 
         if (!response.ok) {

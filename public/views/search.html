@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Семантический поиск по документам</title>
+    <link href="../assets/css/bootstrap.min.css" rel="stylesheet">
+    <link href="../assets/css/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .hidden { display: none; }
+        .main-container { max-width: 1200px; }
+    </style>
+</head>
+<body>
+    <div class="container main-container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="bi bi-search"></i> Семантический поиск по документам</h1>
+            <a href="/upload" class="btn btn-primary">
+                <i class="bi bi-cloud-upload"></i> Загрузить корпус
+            </a>
+        </div>
+
+        <div id="noCorpusMessage" class="card hidden">
+            <div class="card-body text-center">
+                <h3 class="card-title">Корпусы не найдены</h3>
+                <p class="card-text">Для начала работы загрузите ваш первый корпус документов</p>
+                <a href="/upload" class="btn btn-primary btn-lg">
+                    <i class="bi bi-cloud-upload"></i> Загрузить первый корпус
+                </a>
+            </div>
+        </div>
+
+        <div id="searchSection" class="card hidden">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="bi bi-search"></i> Поиск по документам</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-8">
+                        <label for="corpusId" class="form-label">Выберите корпус</label>
+                        <select class="form-select" id="corpusId">
+                            <option value="">-- Выберите корпус --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">&nbsp;</label>
+                        <button id="showHistoryBtn" class="btn btn-outline-secondary w-100">
+                            <i class="bi bi-clock-history"></i> История
+                        </button>
+                    </div>
+                </div>
+
+                <div id="corpusInfo" class="alert alert-info py-2 small"></div>
+
+                <div class="mb-3">
+                    <label for="searchQuery" class="form-label">Поисковый запрос</label>
+                    <textarea class="form-control" id="searchQuery" rows="3" 
+                              placeholder="Введите ваш запрос для семантического поиска..."></textarea>
+                </div>
+
+                <div class="mb-3">
+                    <label for="resultAmount" class="form-label">Количество результатов</label>
+                    <select class="form-select" id="resultAmount">
+                        <option value="5">5 результатов</option>
+                        <option value="10" selected>10 результатов</option>
+                        <option value="20">20 результатов</option>
+                        <option value="50">50 результатов</option>
+                    </select>
+                </div>
+
+                <button id="searchBtn" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Найти
+                </button>
+            </div>
+        </div>
+
+        <div id="resultsContainer" class="mt-4 hidden">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Результаты поиска</h5>
+                </div>
+                <div class="card-body">
+                    <div id="searchResults"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="historyModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">История корпусов</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="historyModalBody"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="../assets/js/bootstrap.bundle.min.js"></script>
+    <script src="../assets/js/search.js"></script>
+</body>
+</html>

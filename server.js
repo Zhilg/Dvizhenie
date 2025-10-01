@@ -19,30 +19,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(express.text({ type: 'text/plain' }));
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    if (!fs.existsSync(SHARED_DATA_PATH)) {
-      fs.mkdirSync(SHARED_DATA_PATH, { recursive: true });
-    }
-    
-    const corpusId = req.corpusId || uuidv4();
-    req.corpusId = corpusId;
-    const corpusPath = path.join(SHARED_DATA_PATH, corpusId);
-    
-    if (!fs.existsSync(corpusPath)) {
-      fs.mkdirSync(corpusPath);
-    }
-    
-    cb(null, corpusPath);
-  },
-  filename: (req, file, cb) => {
-    file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8');
-    cb(null, file.originalname);
-  }
-});
 
-const upload = multer({ storage });
 let jobsDB = { jobs: [] };
+let corporaDB = { corpora: []};
 
 const handleProxyError = (error, serviceName, res) => {
   console.error(`Proxy error for ${serviceName}:`, error);
@@ -81,6 +60,21 @@ const saveJobToDB = (jobData) => {
   }
 };
 
+const saveCorporaToDB = (corporaData) => {
+  try {
+    if (!corporaData.created_at) {
+      corporaData.created_at = new Date().toISOString();
+    }
+    
+    corporaDB.corpora.push(corporaData); 
+    console.log(`Корпус сохранен в БД: ${corporaData.job_id}`);
+    return true;
+  } catch (error) {
+    console.error('Ошибка добавления корпуса в БД:', error);
+    return false;
+  }
+};
+
 const getEmbedding = async (text, modelId) => {
   const response = await axios.post(`${BACKEND_SERVICE_URL}/embedding`, text, {
     headers: {
@@ -91,12 +85,6 @@ const getEmbedding = async (text, modelId) => {
   return response.data;
 };
 
-const createCorpusId = (req, res, next) => {
-  if (!req.corpusId) {
-    req.corpusId = uuidv4();
-  }
-  next();
-};
 
 // Статика
 app.get('/', (req, res) => {
@@ -112,7 +100,11 @@ app.get('/embedding', (req, res) => {
 });
 
 app.get('/semantic', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'views', 'semantic.html'));
+  res.sendFile(path.join(__dirname, 'public', 'views', 'search.html'));
+});
+
+app.get('/upload', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'views', 'upload.html'));
 });
 
 app.get('/clusterization', (req, res) => {
@@ -195,6 +187,29 @@ app.post('/api/similarity', express.json(), async (req, res) => {
 });
 
 // Загрузка файлов
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    if (!fs.existsSync(SHARED_DATA_PATH)) {
+      fs.mkdirSync(SHARED_DATA_PATH, { recursive: true });
+    }
+    
+    const corpusId = req.corpusId || uuidv4();
+    req.corpusId = corpusId;
+    const corpusPath = path.join(SHARED_DATA_PATH, corpusId);
+    
+    if (!fs.existsSync(corpusPath)) {
+      fs.mkdirSync(corpusPath);
+    }
+    
+    cb(null, corpusPath);
+  },
+  filename: (req, file, cb) => {
+    file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    cb(null, file.originalname);
+  }
+});
+
+const upload = multer({ storage });
 app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
   try {
     const modelId = req.headers['x-model-id'] || 'default-model';
@@ -223,26 +238,15 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
   }
 });
 
-app.post('/api/clusterization', createCorpusId, upload.array('files'), async (req, res) => {
+app.post('/api/clusterization', async (req, res) => {
   try {
     const modelId = req.headers['x-model-id'] || 'default-model';
     const ttlHours = req.headers['x-ttl-hours'] || 0;
     const corpusId = req.corpusId;
-    const userCorpusPath = req.headers['x-corpus-path'];
-    let finalCorpusPath = `/${corpusId}`;
-    
-    if (userCorpusPath) {
-      const userFolderPath = path.join(SHARED_DATA_PATH, corpusId, userCorpusPath);
-      if (!fs.existsSync(userFolderPath)) {
-        fs.mkdirSync(userFolderPath, { recursive: true });
-      }
-      finalCorpusPath = `/${corpusId}`;
-    }
 
-    const response = await axios.post(`${BACKEND_SERVICE_URL}/clusterization`, req.body, {
+    const response = await axios.post(`${BACKEND_SERVICE_URL}/clusterization`, {}, {
       headers: {
-        'Content-Type': 'application/json',
-        'x-corpus-path': finalCorpusPath,
+        'x-corpus-path': `/${corpusId}`,
         'x-model-id': modelId,
         'x-ttl-hours': ttlHours
       }
@@ -252,8 +256,8 @@ app.post('/api/clusterization', createCorpusId, upload.array('files'), async (re
       job_id: response.data.job_id,
       type: 'clusterization',
       model_id: modelId,
-      corpus_path: finalCorpusPath,
-      status: 'completed',
+      corpus_path: `/${corpusId}`,
+      status: 'processing', 
       created_at: new Date().toISOString(),
       estimated_time_min: response.data.estimated_time_min || null
     };
@@ -268,18 +272,44 @@ app.post('/api/clusterization', createCorpusId, upload.array('files'), async (re
   } catch (error) {
     console.error('Clusterization error:', error);
     
-    if (error.response) {
-      res.status(error.response.status).json({
-        error: 'Clusterization failed',
-        message: error.response.data?.message || error.message
-      });
-    } else {
-      res.status(500).json({
-        error: 'Clusterization failed',
-        message: error.message
+    if (error.response?.status === 404) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: error.response.data?.message || 'Resource not found'
       });
     }
+    
+    res.status(500).json({
+      error: 'Clusterization failed',
+      message: error.message
+    });
   }
+});
+
+app.get('/corpus-history', async (req, res) => {
+    try {
+        // corporaDB.corpora is already an array, no need to parse
+        res.json(corporaDB.corpora);
+    } catch (error) {
+        console.error('Error reading corpus history:', error);
+        res.status(500).json({ error: 'Ошибка чтения истории' });
+    }
+});
+
+// Добавить корпус в историю
+app.post('/corpus-history', async (req, res) => {
+    try {
+        const newCorpus = req.body;
+        
+        try {
+            saveCorporaToDB(newCorpus);
+        } catch (error) {
+            if (error.code !== 'ENOENT') throw error;
+        }
+        res.status(200).json({ message: 'Корпус сохранен в истории' });
+    } catch (error) {
+        res.status(500).json({ error: 'Ошибка сохранения истории' });
+    }
 });
 
 app.post('/api/classification', upload.array('files'), async (req, res) => {
@@ -688,31 +718,6 @@ app.get('/api/classification/history', (req, res) => {
 });
 
 // Simple GET routes
-app.get('/api/semantic/corpora', async (req, res) => {
-  try {
-    const response = await axios.get(`${BACKEND_SERVICE_URL}/semantic/corpora`);
-    res.json(response.data);
-  } catch (error) {
-    console.error('Corpora list error:', error);
-    res.status(500).json({
-      error: 'Failed to get corpora list',
-      message: error.message
-    });
-  }
-});
-
-app.delete('/api/semantic/corpora/:corpusId', async (req, res) => {
-  try {
-    const response = await axios.delete(`${BACKEND_SERVICE_URL}/semantic/corpora/${req.params.corpusId}`);
-    res.json(response.data);
-  } catch (error) {
-    console.error('Delete corpus error:', error);
-    res.status(500).json({
-      error: 'Failed to delete corpus',
-      message: error.message
-    });
-  }
-});
 
 app.get('/api/health', (req, res) => {
   res.json({
