@@ -67,7 +67,7 @@ const saveCorporaToDB = (corporaData) => {
     }
     
     corporaDB.corpora.push(corporaData); 
-    console.log(`Корпус сохранен в БД: ${corporaData.job_id}`);
+    console.log(`Корпус сохранен в БД: ${corporaData.id}`);
     return true;
   } catch (error) {
     console.error('Ошибка добавления корпуса в БД:', error);
@@ -241,11 +241,12 @@ app.post('/api/clusterization', async (req, res) => {
   try {
     const modelId = req.headers['x-model-id'] || 'default-model';
     const ttlHours = req.headers['x-ttl-hours'] || 0;
-    const corpusId = req.headers['x-corpus-path'];
+    const corpusId = req.headers['x-corpus-id'];
 
     const response = await axios.post(`${BACKEND_SERVICE_URL}/clusterization`, {}, {
       headers: {
-        'x-corpus-path': `/${corpusId}`,
+        'x-corpus-path': corpusId,
+        'x-corpus-id': corpusId, // для старых версий
         'x-model-id': modelId,
         'x-ttl-hours': ttlHours
       }

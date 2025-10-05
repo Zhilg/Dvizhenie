@@ -123,8 +123,8 @@ async function checkUploadStatus() {
             const progress = status.progress || 0;
             updateUploadProgress(progress, `Обработка: ${progress.toFixed(1)}%`);
 
-            // опрос каждые 2 секунды
-            setTimeout(checkUploadStatus, 2000);
+            // опрос каждые 5 секунд
+            setTimeout(checkUploadStatus, 5000);
         } 
         else if (status.status === 'completed') {
             updateUploadProgress(100, 'Загрузка завершена!');
