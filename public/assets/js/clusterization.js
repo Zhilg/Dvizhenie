@@ -513,13 +513,19 @@ function displayVisualizations(visualizationData) {
 async function previewDocument(documentInfo) {
     try {
         previewContent.textContent = 'Загрузка содержимого...';
-        if (documentInfo.content) {
-            previewContent.textContent = documentInfo.content;
-        } else if (documentInfo.name) {
-            previewContent.textContent = `Содержимое файла "${documentInfo.name}" недоступно для предпросмотра.`;
-        } else {
-            previewContent.textContent = 'Содержимое документа недоступно для предпросмотра';
+        if (!documentInfo.name || !currentCorpusId) {
+            previewContent.textContent = 'Недостаточно информации для загрузки документа';
+            return;
         }
+
+        const response = await fetch(`${BASE_URL}/document?corpus_id=${currentCorpusId}&document_id=${documentInfo.name}`);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+
+        const content = await response.text();
+        previewContent.textContent = content;
     } catch (error) {
         console.error('Error previewing document:', error);
         previewContent.textContent = 'Ошибка загрузки содержимого: ' + error.message;

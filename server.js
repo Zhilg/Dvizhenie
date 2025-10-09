@@ -730,6 +730,33 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+app.get('/api/document', (req, res) => {
+  try {
+    const { corpus_id, document_id } = req.query;
+    console.log('Received corpus_id:', corpus_id);
+    console.log('Received document_id:', document_id);
+
+    if (!corpus_id || !document_id) {
+      return res.status(400).json({ error: 'Missing corpus_id or document_id' });
+    }
+
+    const filePath = path.join(__dirname, 'shared_data', corpus_id, document_id);
+    console.log('Constructed filePath:', filePath);
+    console.log('File exists:', fs.existsSync(filePath));
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const content = fs.readFileSync(filePath, 'utf8');
+    res.set('Content-Type', 'text/plain; charset=utf-8');
+    res.send(content);
+  } catch (error) {
+    console.error('Error reading document:', error);
+    res.status(500).json({ error: 'Failed to read document', message: error.message });
+  }
+});
+
 app.get('/api/models', async (req, res) => {
   try {
     const models = await axios.get(`${BACKEND_SERVICE_URL}/models`);
