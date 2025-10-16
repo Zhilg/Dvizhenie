@@ -50,15 +50,14 @@ async function loadCorpusHistory() {
     try {
         const response = await fetch('/corpus-history');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
+
         corpusHistory = await response.json();
         const corpusSelect = document.getElementById('corpusSelect');
         const noCorpusMessage = document.getElementById('noCorpusMessage');
-        const mainContent = document.getElementById('mainContent'); // Add this container
-        
-        // Clear the selector
+        const mainContent = document.getElementById('mainContent');
+
         corpusSelect.innerHTML = '';
-        
+
         if (!corpusHistory || corpusHistory.length === 0) {
             // If no corpora, show full-page message and hide everything else
             corpusSelect.style.display = 'none';
@@ -66,10 +65,10 @@ async function loadCorpusHistory() {
             noCorpusMessage.style.textAlign = 'center';
             noCorpusMessage.style.padding = '50px';
             noCorpusMessage.style.fontSize = '1.5em';
-            
+
             // Hide all other content
             if (mainContent) mainContent.style.display = 'none';
-            
+
             showStatus('Корпусы не найдены', 'warning');
             return;
         } else {
@@ -77,13 +76,15 @@ async function loadCorpusHistory() {
             corpusSelect.style.display = 'block';
             noCorpusMessage.style.display = 'none';
             if (mainContent) mainContent.style.display = 'block';
-            
+
             corpusSelect.innerHTML = '<option value="">Выберите корпус</option>';
             corpusHistory.forEach(corpus => {
                 console.log(corpus);
                 const option = document.createElement('option');
                 option.value = corpus.id;
-                option.textContent = corpus.name || `${corpus.id}. Модель ${getModelNameById(corpus.model)}. Дата создания ${corpus.date}. Файлов ${corpus.files}`;
+                // Use corpus.files_count if available, otherwise fallback to corpus.files
+                const fileCount = corpus.files;
+                option.textContent = corpus.name || `${corpus.id}. Модель ${getModelNameById(corpus.model)}. Дата создания ${corpus.date}. Файлов ${fileCount}`;
                 option.dataset.corpusId = corpus.id;
                 option.dataset.modelId = corpus.model;
                 option.dataset.timestamp = corpus.date;
@@ -248,6 +249,8 @@ function displayClusters(clustersData) {
 }
 
 function createClusterElement(cluster, index, level) {
+    if (!cluster) return document.createElement('div'); // Return empty div for null clusters
+
     const container = document.createElement('div');
     const clusterItem = document.createElement('div');
     clusterItem.className = 'cluster-item';
@@ -267,7 +270,7 @@ function createClusterElement(cluster, index, level) {
 
     const clusterSize = document.createElement('span');
     clusterSize.className = 'cluster-size';
-    clusterSize.textContent = cluster.fileCount || '0';
+    clusterSize.textContent = (cluster && typeof cluster.fileCount === 'number') ? cluster.fileCount.toString() : '0';
 
     clusterItem.appendChild(expandIcon);
     clusterItem.appendChild(folderIcon);
@@ -313,127 +316,162 @@ function createClusterElement(cluster, index, level) {
 }
 
 function displayClusterInfo(cluster, clusterId) {
-    const similarityText = cluster.avgSimilarity !== undefined ? 
+    const fileCount = (cluster && typeof cluster.fileCount === 'number') ? cluster.fileCount : 0;
+    const clusterName = (cluster && cluster.name) ? cluster.name : `Кластер ${clusterId + 1}`;
+    const similarityText = (cluster && cluster.avgSimilarity !== undefined) ?
     `, Средняя схожесть: ${(cluster.avgSimilarity * 100).toFixed(2)}%` : '';
 
-    clusterInfo.textContent = `${cluster.name || `Кластер ${clusterId + 1}`}: ${cluster.fileCount || 0} документов${similarityText}`;
+    clusterInfo.textContent = `${clusterName}: ${fileCount} документов${similarityText}`;
 
-    if (cluster.similarityDistribution) {
-        updateSimilarityChart(cluster.similarityDistribution);
-    }
+    // Add small delay to ensure DOM is ready
+    setTimeout(() => {
+        if (cluster && cluster.similarityDistribution) {
+            updateSimilarityChart(cluster.similarityDistribution);
+        } else {
+            // Fallback for clusters without distribution data
+            const fallbackContainer = document.getElementById('chartContainer');
+            if (fallbackContainer) {
+                fallbackContainer.innerHTML = `
+                    <div style="padding: 20px; text-align: center; color: #666;">
+                        <p>График схожести недоступен для этого кластера</p>
+                    </div>
+                `;
+            }
+        }
+    }, 50);
 }
 
 function updateSimilarityChart(distribution) {
-    const chartContainer = document.querySelector('.chart-container');
-    
-    if (!distribution || !Array.isArray(distribution) || distribution.length === 0) {
+    const chartContainer = document.getElementById('chartContainer');
+
+    try {
+        if (!distribution || !Array.isArray(distribution) || distribution.length === 0) {
+            chartContainer.innerHTML = `
+                <div style="padding: 20px; text-align: center; color: #666;">
+                    <p>Данные для графика не доступны</p>
+                </div>
+            `;
+            return;
+        }
+
+        const sum = distribution.reduce((acc, val) => acc + val, 0);
+        const normalizedDistribution = sum > 0 ?
+            distribution.map(val => val / sum) :
+            distribution.map(() => 1 / distribution.length);
+
+        const intervalLabels = ['0-0.2', '0.2-0.4', '0.4-0.6', '0.6-0.8', '0.8-1.0'];
+
+        // Use table-based layout for better cross-browser compatibility
+        const chartHTML = `
+        <div style="
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: visible;
+            height: auto;
+            width: 100%;
+            box-sizing: border-box;
+        ">
+            <h4 style="margin: 0 0 20px 0; color: #2c3e50; text-align: center;">Распределение схожести в кластере</h4>
+
+            <!-- Table-based layout for cross-browser compatibility -->
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
+                <tbody>
+                    ${normalizedDistribution.map((value, index) => {
+                        const percentage = (value * 100).toFixed(1);
+                        const barWidth = Math.max(value * 100, 5); // Minimum 5% width
+
+                        return `
+                        <tr>
+                            <td style="
+                                font-size: 12px;
+                                color: #555;
+                                font-weight: 500;
+                                width: 50px;
+                                text-align: right;
+                                padding-right: 10px;
+                                vertical-align: middle;
+                            ">${intervalLabels[index]}</td>
+
+                            <td style="
+                                background: #e0e0e0;
+                                border-radius: 4px;
+                                height: 25px;
+                                position: relative;
+                                overflow: visible;
+                                vertical-align: middle;
+                            ">
+                                <div style="
+                                    background: ${getColorByIndex(index)};
+                                    width: ${barWidth}%;
+                                    height: 100%;
+                                    border-radius: 4px;
+                                    position: relative;
+                                    text-align: right;
+                                    padding-right: 10px;
+                                    box-sizing: border-box;
+                                    min-width: 30px;
+                                "
+                                title="Интервал: ${intervalLabels[index]}, Доля: ${percentage}%"
+                                onmouseover="this.style.opacity='0.8'"
+                                onmouseout="this.style.opacity='1'"
+                                >
+                                    <span style="
+                                        color: ${value > 0.15 ? 'white' : '#333'};
+                                        font-size: 11px;
+                                        font-weight: 500;
+                                        line-height: 25px;
+                                        text-shadow: ${value > 0.15 ? '1px 1px 2px rgba(0,0,0,0.3)' : 'none'};
+                                        white-space: nowrap;
+                                    ">${percentage}%</span>
+                                </div>
+                            </td>
+
+                            <td style="
+                                font-size: 11px;
+                                color: #777;
+                                width: 40px;
+                                text-align: left;
+                                padding-left: 10px;
+                                vertical-align: middle;
+                            ">${percentage}%</td>
+                        </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+
+            <!-- Статистика -->
+            <div style="
+                text-align: center;
+                margin-top: 15px;
+                padding: 10px;
+                background: white;
+                border-radius: 4px;
+                font-size: 12px;
+                border: 1px solid #e6dedeff;
+                width: 100%;
+                box-sizing: border-box;
+            ">
+                <strong>Статистика:</strong>
+                Всего элементов: ${distribution.reduce((acc, val) => acc + val, 0).toFixed(0)} |
+                Макс. группа: ${(Math.max(...normalizedDistribution) * 100).toFixed(1)}%
+            </div>
+        </div>
+        `;
+
+        chartContainer.innerHTML = chartHTML;
+
+    } catch (error) {
+        console.error('Error rendering similarity chart:', error);
         chartContainer.innerHTML = `
-            <div style="padding: 20px; text-align: center; color: #666;">
-                <p>Данные для графика не доступны</p>
+            <div style="padding: 20px; text-align: center; color: #666; border: 1px solid #ddd; border-radius: 4px;">
+                <p>Ошибка отображения графика</p>
+                <p style="font-size: 12px; color: #999;">${error.message}</p>
             </div>
         `;
-        return;
     }
-    
-    const sum = distribution.reduce((acc, val) => acc + val, 0);
-    const normalizedDistribution = sum > 0 ? 
-        distribution.map(val => val / sum) : 
-        distribution.map(() => 1 / distribution.length);
-    
-    const intervalLabels = ['0-0.2', '0.2-0.4', '0.4-0.6', '0.6-0.8', '0.8-1.0'];
-    
-    chartContainer.innerHTML = `
-    <div style="
-        padding: 15px; 
-        background: #f8f9fa; 
-        border-radius: 8px; 
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        overflow: visible;
-        min-height: 200px;
-        box-sizing: border-box;
-    ">
-        <h4 style="margin: 0 0 20px 0; color: #2c3e50; text-align: center;">Распределение схожести в кластере</h4>
-        
-        <!-- Горизонтальные столбцы -->
-        <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 15px;">
-            ${normalizedDistribution.map((value, index) => {
-                const percentage = (value * 100).toFixed(1);
-                const barWidth = value * 100;
-                
-                return `
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <div style="
-                        font-size: 12px; 
-                        color: #555; 
-                        font-weight: 500;
-                        min-width: 50px;
-                        text-align: right;
-                    ">${intervalLabels[index]}</div>
-                    
-                    <div style="
-                        flex: 1;
-                        background: #e0e0e0;
-                        border-radius: 4px;
-                        height: 25px;
-                        min-width: 50px;
-                        position: relative;
-                        overflow: visible;
-                    ">
-                        <div style="
-                            background: ${getColorByIndex(index)};
-                            width: ${barWidth}%;
-                            height: 100%;
-                            border-radius: 4px;
-                            transition: width 0.3s ease;
-                            display: flex;
-                            align-items: center;
-                            justify-content: flex-end;
-                            padding: 0 10px;
-                            box-sizing: border-box;
-                            min-width: fit-content;
-                            position: relative;
-                        " 
-                        title="Интервал: ${intervalLabels[index]}, Доля: ${percentage}%"
-                        onmouseover="this.style.filter='brightness(1.1)'"
-                        onmouseout="this.style.filter='brightness(1)'"
-                        >
-                            <span style="
-                                color: ${value > 0.15 ? 'white' : '#333'};
-                                font-size: 11px;
-                                font-weight: 500;
-                                text-shadow: ${value > 0.15 ? '1px 1px 2px rgba(0,0,0,0.3)' : 'none'};
-                                white-space: nowrap;
-                            ">${percentage}%</span>
-                        </div>
-                    </div>
-                    
-                    <div style="
-                        font-size: 11px; 
-                        color: #777; 
-                        min-width: 40px;
-                        text-align: left;
-                    ">${percentage}%</div>
-                </div>
-                `;
-            }).join('')}
-        </div>
-        
-        <!-- Статистика -->
-        <div style="
-            text-align: center; 
-            margin-top: 15px; 
-            padding: 10px; 
-            background: white; 
-            border-radius: 4px; 
-            font-size: 12px;
-            border: 1px solid #e6dedeff;
-        ">
-            <strong>Статистика:</strong> 
-            Всего элементов: ${distribution.reduce((acc, val) => acc + val, 0).toFixed(0)} |
-            Макс. группа: ${(Math.max(...normalizedDistribution) * 100).toFixed(1)}%
-        </div>
-    </div>
-    `;
 }
 
 function getColorByIndex(index) {
@@ -455,16 +493,19 @@ function displayClusterDocuments(documents) {
 
     filesTableBody.innerHTML = '';
     documents.forEach((doc, index) => {
+        if (!doc) return; // Skip null/undefined documents
+
         const row = document.createElement('tr');
 
         const fileNameCell = document.createElement('td');
-        fileNameCell.textContent = doc.name || doc.filename || `Документ ${index + 1}`;
+        fileNameCell.textContent = (doc && (doc.name || doc.filename)) ? (doc.name || doc.filename) : `Документ ${index + 1}`;
+        fileNameCell.style.wordWrap = 'break-word';
 
         const similarityCell = document.createElement('td');
-        similarityCell.textContent = doc.similarity !== undefined ? `${(doc.similarity * 100).toFixed(2)}%` : 'N/A';
+        similarityCell.textContent = (doc && doc.similarity !== undefined) ? `${(doc.similarity * 100).toFixed(2)}%` : 'N/A';
 
         const sizeCell = document.createElement('td');
-        sizeCell.textContent = doc.size ? formatFileSize(doc.size) : 'N/A';
+        sizeCell.textContent = (doc && doc.size) ? formatFileSize(doc.size) : 'N/A';
 
         const actionsCell = document.createElement('td');
         const previewBtn = document.createElement('button');
@@ -485,16 +526,22 @@ function displayVisualizations(visualizationData) {
     const visualizationsContainer = document.getElementById('visualizationsContainer');
     if (!visualizationsContainer) return;
 
-    const hasVisualizations = visualizationData.graphic_representation || 
-                            visualizationData.planetar_representation || 
-                            visualizationData.drill_down_representation;
+    const hasVisualizations = visualizationData.graphic_representation ||
+                             visualizationData.planetar_representation ||
+                             visualizationData.drill_down_representation;
 
     if (hasVisualizations) {
         visualizationsContainer.style.display = 'block';
+
+        // Construct frontend URL with port 3000
+        const currentLocation = window.location;
+        const frontendUrl = `${currentLocation.protocol}//${currentLocation.hostname}:3000`;
+
         let html = '<h4 style="margin-bottom: 15px; color: #2c3e50;">🌐 Визуализации кластеризации</h4><div style="display: flex; flex-wrap: wrap; gap: 15px;">';
 
         if (visualizationData.graphic_representation) {
-            html += `<div class="visualization-item"><h4>Графическая визуализация</h4><a href="${visualizationData.graphic_representation}" target="_blank">${visualizationData.graphic_representation}</a></div>`;
+            const fullUrl = frontendUrl + visualizationData.graphic_representation;
+            html += `<div class="visualization-item"><h4>Графическая визуализация</h4><a href="${fullUrl}" target="_blank">${fullUrl}</a></div>`;
         }
         if (visualizationData.planetar_representation) {
             html += `<div class="visualization-item"><h4>Планетарная модель</h4><a href="${visualizationData.planetar_representation}" target="_blank">${visualizationData.planetar_representation}</a></div>`;

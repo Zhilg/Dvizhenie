@@ -32,7 +32,7 @@ body {
         "header header"
         "sidebar main"
         "footer footer";
-    height: 100vh;
+    min-height: 100vh;
 }
 
 header {
@@ -122,9 +122,11 @@ header {
     grid-area: main;
     padding: 1rem;
     overflow-y: auto;
-    display: grid;
-    grid-template-rows: auto 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 1rem;
+    height: 100%;
+    box-sizing: border-box;
 }
 
 footer {
@@ -280,13 +282,40 @@ footer {
     align-items: center;
 }
 
+.panel_documents {
+    background-color: white;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+
+
 .panel-body {
     padding: 15px;
+    overflow: hidden;
 }
 
 .files-table {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed;
+    margin: 0;
+}
+
+.files-table-header {
+    background-color: #f8f9fa;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.files-table-body-container {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
 }
 
 .files-table th {
@@ -312,20 +341,24 @@ footer {
 }
 
 .preview-container {
-    height: 300px;
-    overflow-y: auto;
+    min-height: 400px;
     border: 1px solid #ddd;
     border-radius: 4px;
     padding: 15px;
     background-color: #f8f9fa;
     font-family: monospace;
     white-space: pre-wrap;
+    box-sizing: border-box;
 }
 
 .chart-container {
     height: 300px;
     position: relative;
-    overflow: hidden;
+    overflow: auto;
+    width: 100%;
+    box-sizing: border-box;
+    max-height: 300px;
+    min-height: 300px;
 }
 
 .loading {

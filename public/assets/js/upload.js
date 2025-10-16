@@ -127,7 +127,7 @@ async function checkUploadStatus() {
             setTimeout(checkUploadStatus, 5000);
         } 
         else if (status.status === 'completed') {
-            updateUploadProgress(100, 'Загрузка завершена!');
+            updateUploadProgress(100, 'Загрузка завершена! Получение результатов...');
             await getUploadResults(status.result_url);
             resetUploadButton();
         }
@@ -188,8 +188,8 @@ async function processSuccessfulResponse(response) {
     const modelId = document.getElementById('modelSelect').value;
     console.log(results);
     
-    await saveCorpusToProxy(results.corpus_id, modelSelect.value, results.files);
-    saveCorpusToHistory(results.corpus_id, modelSelect.value, results.files);
+    await saveCorpusToProxy(results.corpus_id, modelSelect.value, results.file_count);
+    saveCorpusToHistory(results.corpus_id, modelSelect.value, results.file_count);
     
     // Показываем результаты
     document.getElementById('uploadResults').innerHTML = `
