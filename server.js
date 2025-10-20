@@ -583,7 +583,8 @@ app.get('/api/result', async (req, res) => {
             console.log("Primary request failed with error:", primaryError.message);
             // Если это сетевая ошибка (DNS, таймаут и т.д.), пробуем фоллбэк
             if (primaryError.code === 'ENOTFOUND' || primaryError.code === 'ECONNREFUSED' || 
-                primaryError.code === 'ECONNABORTED' || primaryError.code === 'ETIMEDOUT' || primaryError.code === 'ERR_INVALID_URL') {
+                primaryError.code === 'ECONNABORTED' || primaryError.code === 'ETIMEDOUT' || 
+                primaryError.code === 'ERR_INVALID_URL' || primaryError.code === 'EAI_AGAIN') {
                 
                 console.log("Network error detected, trying fallback...");
                 const fallbackUrl = await buildFallbackUrl(resultUrl);
