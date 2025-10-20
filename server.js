@@ -16,8 +16,8 @@ const BACKEND_SERVICE_URL = 'http://back-service:3000/api';
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json({ limit: '100mb' }));
-app.use(express.text({ type: 'text/plain', limit: '100mb' }));
+app.use(express.json({ limit: 'Infinity' }));
+app.use(express.text({ type: 'text/plain', limit: 'Infinity' }));
 
 
 let jobsDB = { jobs: [] };
