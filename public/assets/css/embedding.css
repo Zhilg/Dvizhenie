@@ -33,14 +33,12 @@ h1, h2 {
     color: white;
     border-radius: 8px;
     cursor: pointer;
-    transition: all 0.3s ease;
     text-align: center;
     margin-bottom: 1rem;
 }
 
 .custom-file-upload:hover {
     background: var(--secondary);
-    transform: translateY(-2px);
 }
 
 #file-upload {
@@ -77,8 +75,6 @@ textarea.form-control:focus {
 
 .grid-button:hover {
     background: var(--secondary);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 
 #vector-results {
@@ -180,6 +176,6 @@ textarea.form-control:focus {
 }
 
 .home-btn:hover {
-    background-color: #1a252f;
+    background-color: #4dabf7;
     color:white;
 }

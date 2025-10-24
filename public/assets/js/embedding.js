@@ -45,9 +45,6 @@ async function handleFileUpload(event) {
         originalTextArea.value = content;
         modifiedTextArea.value = content;
         
-        // In a real app, you would send this to your backend for saving
-        filePath = `uploads/${file.name}`;
-        console.log('File uploaded:', filePath);
     } catch (error) {
         console.error('Error reading file:', error);
         alert('Ошибка при чтении файла');
@@ -96,7 +93,7 @@ async function checkTextSimilarity() {
     showError('Пожалуйста, выберите модель');
     return;
   }
-  if (!originalText || !modifiedText) {
+  if (!originalTextArea.value || !modifiedTextArea.value) {
     alert('Пожалуйста, загрузите файл и введите модифицированный текст');
     return;
   }
