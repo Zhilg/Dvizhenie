@@ -1,55 +1,60 @@
+// Инициализация функционала нормализации текста при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
-    const fileInput = document.getElementById('fileInput');
-    const fileLabel = document.getElementById('fileLabel');
-    const sourceText = document.getElementById('sourceText');
-    const processBtn = document.getElementById('processBtn');
-    const errorDiv = document.getElementById('error');
-    const comparisonDiv = document.getElementById('comparison');
-    
-    // Обработка выбора файла
+    // Получение ссылок на элементы DOM для работы с интерфейсом
+    const fileInput = document.getElementById('fileInput'); // Поле выбора файла
+    const fileLabel = document.getElementById('fileLabel'); // Метка файла
+    const sourceText = document.getElementById('sourceText'); // Текстовое поле с исходным текстом
+    const processBtn = document.getElementById('processBtn'); // Кнопка обработки
+    const errorDiv = document.getElementById('error'); // Блок отображения ошибок
+    const comparisonDiv = document.getElementById('comparison'); // Блок сравнения текстов
+
+    // Обработка выбора файла через стандартный диалог
     fileInput.addEventListener('change', handleFileSelect);
-    
-    // Обработка перетаскивания файла
+
+    // Обработка перетаскивания файла на страницу (drag and drop)
     document.addEventListener('dragover', (e) => {
         e.preventDefault();
-        fileLabel.style.background = '#e9e9e9';
+        fileLabel.style.background = '#e9e9e9'; // Визуальная обратная связь при перетаскивании
     });
-    
+
     document.addEventListener('dragleave', () => {
-        fileLabel.style.background = '#eee';
+        fileLabel.style.background = '#eee'; // Возврат к обычному фону
     });
-    
+
     document.addEventListener('drop', (e) => {
         e.preventDefault();
         fileLabel.style.background = '#eee';
         if (e.dataTransfer.files.length) {
-            fileInput.files = e.dataTransfer.files;
-            handleFileSelect();
+            fileInput.files = e.dataTransfer.files; // Установка перетащенного файла
+            handleFileSelect(); // Обработка файла
         }
     });
-    
-    // Обработка клика на кнопку
+
+    // Обработка клика на кнопку нормализации текста
     processBtn.addEventListener('click', processText);
     
+    // Обработка выбора файла пользователем
     function handleFileSelect() {
         if (fileInput.files.length > 0) {
             const file = fileInput.files[0];
+            // Отображение информации о выбранном файле
             fileLabel.innerHTML = `Выбран файл: <strong>${file.name}</strong> <small class="text-muted">(${(file.size/1024).toFixed(2)} KB)</small>`;
-            
-            // Чтение содержимого файла
+
+            // Чтение содержимого файла с помощью FileReader
             const reader = new FileReader();
             reader.onload = (e) => {
-                sourceText.value = e.target.result;
+                sourceText.value = e.target.result; // Загрузка текста в поле ввода
             };
             reader.onerror = (e) => {
-                showError('Ошибка чтения файла');
+                showError('Ошибка чтения файла'); // Обработка ошибки чтения
             };
-            
+
+            // Проверка типа файла (только текстовые файлы)
             if (file.type.includes('text') || file.name.endsWith('.txt')) {
-                reader.readAsText(file);
+                reader.readAsText(file); // Чтение файла как текста
             } else {
                 showError('Можно загружать только текстовые файлы (.txt)');
-                fileInput.value = '';
+                fileInput.value = ''; // Очистка поля выбора файла
                 fileLabel.innerHTML = 'Выберите файл или перетащите сюда<br><small class="text-muted">Поддерживаются .txt</small>';
             }
         }

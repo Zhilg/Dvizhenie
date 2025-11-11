@@ -474,21 +474,22 @@ function displayClusteringResults(clusterData) {
     document.getElementById('results').appendChild(clusteringSection);
 }
 
+// Рекурсивное отображение дерева кластеров (не используется в текущей версии)
 function renderClusterTree(node, level = 0) {
     if (!node.id) return '<p>Нет данных о кластеризации</p>';
-    
+
     let html = `
         <div class="cluster-node" style="margin-left: ${level * 20}px">
             <div class="cluster-header">
-                <strong>${node.name || 'Без названия'}</strong> 
+                <strong>${node.name || 'Без названия'}</strong>
                 <span class="cluster-stats">${node.fileCount || 0} файлов, ${((node.avgSimilarity || 0) * 100).toFixed(1)}%</span>
             </div>
     `;
-    
+
     if (node.changes && node.changes.status !== 'unchanged') {
         html += `<span class="change-badge ${node.changes.status}">${getChangeBadgeText(node.changes.status)}</span>`;
     }
-    
+
     if (node.children && node.children.length > 0) {
         html += '<div class="cluster-children">';
         node.children.forEach(child => {
@@ -496,11 +497,12 @@ function renderClusterTree(node, level = 0) {
         });
         html += '</div>';
     }
-    
+
     html += '</div>';
     return html;
 }
 
+// Получение текста для отображения статуса изменения кластера
 function getChangeBadgeText(status) {
     const statusText = {
         'new': 'НОВЫЙ',
@@ -511,11 +513,11 @@ function getChangeBadgeText(status) {
     return statusText[status] || status;
 }
 
-// Загрузка истории дообучения
+// Загрузка истории выполненных заданий дообучения
 async function loadFineTuningHistory() {
     try {
         const response = await fetch('/api/fine-tuning/history');
-        
+
         if (response.ok) {
             const history = await response.json();
             displayFineTuningHistory(history);
@@ -525,13 +527,14 @@ async function loadFineTuningHistory() {
     }
 }
 
+// Отображение истории дообучения моделей
 function displayFineTuningHistory(history) {
     const container = document.getElementById('fineTuningHistory');
     if (!history || history.length === 0) {
         container.innerHTML = '<p>📝 Нет истории дообучения</p>';
         return;
     }
-    
+
     container.innerHTML = history.map(job => `
         <div class="job-item">
             <div class="job-header">
@@ -548,13 +551,16 @@ function displayFineTuningHistory(history) {
     `).join('');
 }
 
-// Вспомогательные функции
+// Вспомогательные функции для работы с интерфейсом
+
+// Отображение статуса операции в интерфейсе
 function showStatus(message, type) {
     const container = document.getElementById('status');
     container.innerHTML = `<div class="status-${type}">${message}</div>`;
     container.className = `status-container status-${type}`;
 }
 
+// Получение иконки для отображения статуса задания
 function getStatusIcon(status) {
     const icons = {
         'processing': '🔄',
@@ -564,20 +570,23 @@ function getStatusIcon(status) {
     return icons[status] || '📋';
 }
 
+// Заглушка для функции скачивания результатов дообучения
 function downloadResults() {
     alert('Функция скачивания отчета будет реализована в будущем');
 }
 
+// Заглушка для функции тестирования новой модели
 function testNewModel() {
     alert('Функция тестирования новой модели будет реализована в будущем');
 }
 
+// Заглушка для функции развертывания новой модели
 function deployNewModel() {
     alert('Функция развертывания новой модели будет реализована в будущем');
 }
 
-// Инициализация при загрузке страницы
+// Инициализация приложения при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
-    loadModels();
-    loadFineTuningHistory();
+    loadModels(); // Загружаем список доступных моделей
+    loadFineTuningHistory(); // Загружаем историю дообучения
 });

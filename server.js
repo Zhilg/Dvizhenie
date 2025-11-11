@@ -65,9 +65,18 @@ const saveCorporaToDB = (corporaData) => {
     if (!corporaData.created_at) {
       corporaData.created_at = new Date().toISOString();
     }
-    
-    corporaDB.corpora.push(corporaData); 
-    console.log(`Корпус сохранен в БД: ${corporaData.id}`);
+
+    // Проверяем, существует ли уже корпус с таким ID
+    const existingIndex = corporaDB.corpora.findIndex(c => c.id === corporaData.id);
+    if (existingIndex >= 0) {
+      // Обновляем существующий
+      corporaDB.corpora[existingIndex] = corporaData;
+      console.log(`Корпус обновлен в БД: ${corporaData.id}`);
+    } else {
+      // Добавляем новый
+      corporaDB.corpora.push(corporaData);
+      console.log(`Корпус сохранен в БД: ${corporaData.id}`);
+    }
     return true;
   } catch (error) {
     console.error('Ошибка добавления корпуса в БД:', error);
@@ -215,6 +224,7 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
     const modelId = req.headers['x-model-id'] || 'default-model';
     const ttlHours = req.headers['x-ttl-hours'] || 0;
     const corpusId = req.corpusId;
+    const corpusName = req.headers['x-corpus-name'];
 
     const response = await axios.post(`${BACKEND_SERVICE_URL}/semantic/upload`, {}, {
       headers: {
@@ -226,6 +236,7 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
 
     res.status(202).json({
       ...response.data,
+      name: corpusName
     });
 
   } catch (error) {
@@ -563,7 +574,7 @@ app.get('/api/jobs/:jobId', async (req, res) => {
 app.get('/api/result', async (req, res) => {
     try {
         let resultUrl = req.headers['x-result-url'];
-        
+
         if (!resultUrl) {
             return res.status(400).json({ error: 'Missing x-result-url header' });
         }
@@ -612,7 +623,7 @@ app.get('/api/result', async (req, res) => {
 
         // Успешный ответ
         res.json(response.data);
-        
+
     } catch (error) {
         console.error('Results error:', error);
         

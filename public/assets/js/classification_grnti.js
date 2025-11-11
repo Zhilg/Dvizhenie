@@ -578,15 +578,15 @@ function displayJobHistory() {
     `).join('');
 }
 
-// Инициализация
+// Инициализация приложения при загрузке страницы
 
-
+// Загрузка справочника кодов ГРНТИ для отображения расшифровок
 async function loadGrntiCodes() {
     try {
         const response = await fetch('/api/grnti-codes');
         if (response.ok) {
             const data = await response.json();
-            window.grntiCodesData = data; // Делаем глобально доступным
+            window.grntiCodesData = data; // Сохраняем в глобальном объекте window для доступа из других функций
             showStatus('✅ Расшифровка кодов ГРНТИ загружена', 'success');
         } else {
             showStatus('⚠️ Не удалось загрузить расшифровку кодов ГРНТИ', 'warning');
@@ -597,7 +597,7 @@ async function loadGrntiCodes() {
     }
 }
 
-// Показ модального окна с информацией о коде ГРНТИ
+// Отображение модального окна с подробной информацией о коде ГРНТИ
 function showGrntiInfo(code, source = 'system') {
     const modal = document.getElementById('grntiModal');
     const codeInfo = window.grntiCodesData?.[code] || {
@@ -608,38 +608,38 @@ function showGrntiInfo(code, source = 'system') {
 
     // Очищаем предыдущую информацию об источнике
     const grntiCodeInfo = document.getElementById('grntiCodeInfo');
-    
-    // Сохраняем основную структуру, но удаляем старые элементы источника
+
+    // Формируем основную информацию о коде ГРНТИ
     grntiCodeInfo.innerHTML = `
         <p><strong>Код:</strong> <span id="modalCode">${code}</span></p>
         <p><strong>Название:</strong> <span id="modalName">${codeInfo.name}</span></p>
         <p><strong>Описание:</strong> <span id="modalDescription">${codeInfo.description}</span></p>
         <p><strong>Область знаний:</strong> <span id="modalBranch">${codeInfo.branch || 'Общая рубрика'}</span></p>
     `;
-    
-    // Добавляем информацию о источнике (только один раз)
+
+    // Добавляем информацию о том, откуда пришел код (система или эксперт)
     const sourceInfo = document.createElement('p');
     sourceInfo.innerHTML = `<strong>Источник:</strong> ${source === 'system' ? 'Предсказание системы' : 'Экспертная оценка'}`;
     grntiCodeInfo.appendChild(sourceInfo);
-    
+
     modal.style.display = 'block';
 }
 
-// Закрытие модального окна
+// Закрытие модального окна с информацией о ГРНТИ
 function closeGrntiModal() {
     document.getElementById('grntiModal').style.display = 'none';
 }
 
-// Функция для создания ячейки с кодом ГРНТИ и иконкой информации
+// Создание ячейки с кодом ГРНТИ и иконкой для просмотра дополнительной информации
 function createGrntiCell(code, name, isEditable = false, source = 'system') {
     const container = document.createElement('div');
     container.style.display = 'flex';
     container.style.alignItems = 'center';
     container.style.justifyContent = 'space-between';
-    
+
     const textSpan = document.createElement('span');
     textSpan.textContent = `${code} - ${name}`;
-    
+
     const infoIcon = document.createElement('span');
     infoIcon.textContent = 'ℹ️';
     infoIcon.className = 'info-icon';
@@ -648,10 +648,11 @@ function createGrntiCell(code, name, isEditable = false, source = 'system') {
         e.stopPropagation();
         showGrntiInfo(code, source);
     };
-    
+
     container.appendChild(textSpan);
     container.appendChild(infoIcon);
-    
+
+    // Если ячейка редактируемая, добавляем обработчик клика
     if (isEditable) {
         container.className = 'editable-cell';
         container.onclick = (e) => {
@@ -660,13 +661,14 @@ function createGrntiCell(code, name, isEditable = false, source = 'system') {
             }
         };
     }
-    
+
     return container;
 }
 
+// Создание контейнера для отображения топ-5 предсказаний с кодами ГРНТИ
 function createTop5PredictionsCell(predictions) {
     const container = document.createElement('div');
-    
+
     predictions.forEach((pred, index) => {
         const [code, confidence] = pred;
         const predictionItem = document.createElement('div');
@@ -674,14 +676,14 @@ function createTop5PredictionsCell(predictions) {
         predictionItem.style.justifyContent = 'space-between';
         predictionItem.style.alignItems = 'center';
         predictionItem.style.marginBottom = '4px';
-        
+
         const codeSpan = document.createElement('span');
         codeSpan.textContent = `${code}`;
-        
+
         const confidenceSpan = document.createElement('span');
         confidenceSpan.textContent = `${(confidence * 100).toFixed(1)}%`;
         confidenceSpan.style.marginLeft = '10px';
-        
+
         const infoIcon = document.createElement('span');
         infoIcon.textContent = 'ℹ️';
         infoIcon.className = 'info-icon';
@@ -690,69 +692,69 @@ function createTop5PredictionsCell(predictions) {
             e.stopPropagation();
             showGrntiInfo(code, 'system');
         };
-        
+
         predictionItem.appendChild(codeSpan);
         predictionItem.appendChild(confidenceSpan);
         predictionItem.appendChild(infoIcon);
-        
+
         container.appendChild(predictionItem);
     });
-    
+
     return container;
 }
 
-// Редактирование ячейки с кодом ГРНТИ
+// Включение режима редактирования для ячейки с кодом ГРНТИ (альтернативная версия)
 function editGrntiCell(cellElement, currentCode, currentName) {
     const input = document.createElement('input');
     input.type = 'text';
     input.value = `${currentCode} - ${currentName}`;
     input.className = 'editable-input';
-    
-    // Сохраняем оригинальное содержимое
+
+    // Сохраняем оригинальное содержимое для возможного восстановления
     const originalContent = cellElement.innerHTML;
-    
-    // Заменяем содержимое на input
+
+    // Заменяем содержимое ячейки на поле ввода
     cellElement.innerHTML = '';
     cellElement.appendChild(input);
     input.focus();
-    
-    // Обработка сохранения
+
+    // Функция сохранения внесенных изменений
     const saveEdit = () => {
         const newValue = input.value.trim();
         if (newValue) {
-            // Разбираем введенное значение (ожидаем формат "код - название")
+            // Парсим введенное значение в формате "код - название"
             const parts = newValue.split(' - ');
             const newCode = parts[0];
             const newName = parts.slice(1).join(' - ');
-            
-            // Обновляем содержимое ячейки
+
+            // Восстанавливаем ячейку с новым содержимым
             cellElement.innerHTML = '';
             const newContent = createGrntiCell(newCode, newName, true);
             cellElement.appendChild(newContent);
-            
-            // Сохраняем изменение эксперта
+
+            // Сохраняем экспертную корректировку
             saveExpertOpinion(cellElement.closest('tr').dataset.file, newCode, newName);
         } else {
-            // Восстанавливаем оригинальное содержимое
+            // Восстанавливаем оригинальное содержимое при пустом вводе
             cellElement.innerHTML = originalContent;
         }
     };
-    
-    // Обработка нажатия Enter
+
+    // Сохранение по нажатию клавиши Enter
     input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             saveEdit();
         }
     });
-    
-    // Обработка потери фокуса
+
+    // Сохранение при потере фокуса поля ввода
     input.addEventListener('blur', saveEdit);
 }
 
-// Функция для создания input для экспертной оценки
+// Создание поля ввода для экспертной оценки в процентах
 function createExpertInput(fileName, currentValue) {
     const container = document.createElement('div');
-    
+
     const input = document.createElement('input');
     input.type = 'number';
     input.min = 0;
@@ -761,7 +763,7 @@ function createExpertInput(fileName, currentValue) {
     input.value = currentValue || '';
     input.className = 'expert-input';
     input.placeholder = '0-100%';
-    
+
     input.addEventListener('change', (e) => {
         const value = parseInt(e.target.value);
         if (value >= 0 && value <= 100) {
@@ -770,32 +772,33 @@ function createExpertInput(fileName, currentValue) {
             e.target.value = '';
         }
     });
-    
+
     container.appendChild(input);
     return container;
 }
 
-// Сохранение мнения эксперта о коде ГРНТИ
+// Сохранение экспертной оценки кода ГРНТИ для файла
 function saveExpertOpinion(fileName, code, name) {
     if (!expertOpinions[fileName]) {
         expertOpinions[fileName] = {};
     }
     expertOpinions[fileName].expert_code = code;
     expertOpinions[fileName].expert_name = name;
-    
+
     console.log('Expert opinion saved:', fileName, code, name);
 }
 
-// Сохранение процентного соответствия от эксперта
+// Сохранение экспертной оценки соответствия в процентах
 function saveExpertPercentage(fileName, percentage) {
     if (!expertOpinions[fileName]) {
         expertOpinions[fileName] = {};
     }
     expertOpinions[fileName].expert_percentage = percentage;
-    
+
     console.log('Expert percentage saved:', fileName, percentage);
 }
 
+// Отправка всех экспертных оценок на сервер для сохранения (дублирующая функция)
 async function saveAllExpertOpinions() {
     try {
         const response = await fetch('/api/save-expert-opinions', {
@@ -809,7 +812,7 @@ async function saveAllExpertOpinions() {
                 original_results: currentResults
             })
         });
-        
+
         if (response.ok) {
             showStatus('✅ Мнения эксперта сохранены', 'success');
         } else {

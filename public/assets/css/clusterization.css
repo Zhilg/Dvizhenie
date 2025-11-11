@@ -114,7 +114,7 @@ header {
     background-color: white;
     padding: 1rem;
     border-right: 1px solid #ddd;
-    overflow-y: auto;
+    overflow-y: visible;
     overflow-x: auto;
 }
 

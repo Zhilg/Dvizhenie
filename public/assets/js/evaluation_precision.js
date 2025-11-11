@@ -1,22 +1,23 @@
+// Глобальная переменная для хранения истории заданий классификации
 let classificationHistory = [];
 
-// Загрузка истории заданий классификации
+// Загрузка истории выполненных заданий классификации с сервера
 async function loadClassificationHistory(type = 'all') {
     try {
         showStatus('🔄 Загрузка истории классификации...', 'processing');
-        
+
         const response = await fetch('/api/classification/history');
-        
+
         if (!response.ok) {
             throw new Error('Ошибка загрузки истории');
         }
-        
+
         const data = await response.json();
-        classificationHistory = Array.isArray(data) ? data : [];
-        
-        displayClassificationHistory(type);
+        classificationHistory = Array.isArray(data) ? data : []; // Убеждаемся что данные - массив
+
+        displayClassificationHistory(type); // Отображаем историю
         showStatus('✅ История загружена', 'success');
-        
+
     } catch (error) {
         console.error('Error loading classification history:', error);
         showStatus('❌ Ошибка загрузки истории: ' + error.message, 'error');
@@ -25,13 +26,15 @@ async function loadClassificationHistory(type = 'all') {
     }
 }
 
+// Отображение истории заданий классификации с фильтрацией по типу
 function displayClassificationHistory(type) {
     const container = document.getElementById('classificationHistory');
-    
-    const filteredHistory = type === 'all' 
-        ? classificationHistory 
+
+    // Фильтруем историю по типу задания
+    const filteredHistory = type === 'all'
+        ? classificationHistory
         : classificationHistory.filter(job => job.type === type || job.type === `${type}_classification`);
-    
+
     if (filteredHistory.length === 0) {
         container.innerHTML = '<p>📝 Нет истории заданий классификации</p>';
         return;
@@ -56,27 +59,28 @@ function displayClassificationHistory(type) {
     `).join('');
 }
 
+// Выбор задания классификации для использования в оценке
 function useClassificationJob(jobId, jobType) {
     document.getElementById('classificationJobId').value = jobId;
     document.getElementById('evaluationType').value = jobType;
     showStatus(`✅ Выбрано задание: ${jobId}`, 'success');
 }
 
-// Запуск оценки точности
+// Запуск процесса оценки точности классификации
 async function evaluatePrecision() {
     const jobId = document.getElementById('classificationJobId').value;
     const evalType = document.getElementById('evaluationType').value;
-    const threshold = 0.8;
-    
+    const threshold = 0.8; // Пороговое значение для оценки
+
     if (!jobId || !evalType) {
         showStatus('❌ Заполните все обязательные поля', 'error');
         return;
     }
-    
+
     try {
         document.getElementById('evaluateBtn').disabled = true;
         showStatus('🧮 Вычисление точности...', 'processing');
-        
+
         const response = await fetch('/api/evaluation/precision', {
             method: 'POST',
             headers: {
@@ -85,16 +89,16 @@ async function evaluatePrecision() {
                 'x-evaluation-type': evalType
             }
         });
-        
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Ошибка сервера');
         }
-        
+
         const results = await response.json();
-        displayResults(results);
+        displayResults(results); // Отображаем результаты оценки
         showStatus('✅ Оценка точности завершена!', 'success');
-        
+
     } catch (error) {
         console.error('Evaluation error:', error);
         showStatus('❌ Ошибка оценки: ' + error.message, 'error');
@@ -103,24 +107,24 @@ async function evaluatePrecision() {
     }
 }
 
-// Отображение результатов
+// Отображение результатов оценки точности в интерфейсе
 function displayResults(results) {
-    // Обновляем summary cards
+    // Обновляем сводные карточки с метриками
     document.getElementById('precisionValue').textContent = results.metrics.precision.toFixed(4);
     document.getElementById('totalFiles').textContent = results.metrics.total_files;
     document.getElementById('matchesFound').textContent = results.summary.files_with_matches;
-    document.getElementById('matchesPercent').textContent = 
+    document.getElementById('matchesPercent').textContent =
         Math.round((results.summary.files_with_matches / results.metrics.total_files) * 100) + '%';
 
-    // Обновляем детальную статистику
+    // Обновляем детальную статистику (True Positive, False Positive, False Negative)
     document.getElementById('totalTp').textContent = results.metrics.total_tp;
     document.getElementById('totalFp').textContent = results.metrics.total_fp;
     document.getElementById('totalFn').textContent = results.metrics.total_fn;
-    
-    // Обновляем статус требования
+
+    // Обновляем статус выполнения требования по порогу точности
     const precisionCard = document.getElementById('precisionCard');
     const precisionStatus = document.getElementById('precisionStatus');
-   
+
     if (results.threshold_met) {
         precisionCard.classList.add('success');
         precisionCard.classList.remove('warning', 'error');
@@ -130,11 +134,11 @@ function displayResults(results) {
         precisionCard.classList.remove('success', 'warning');
         precisionStatus.textContent = 'Требование не выполнено ❌';
     }
-    
-    // Заполняем таблицу результатов
+
+    // Заполняем таблицу с результатами по каждому файлу
     const tbody = document.getElementById('resultsBody');
     tbody.innerHTML = '';
-    
+
     results.file_level_metrics.forEach(metric => {
         const row = document.createElement('tr');
         row.innerHTML = `
@@ -151,17 +155,20 @@ function displayResults(results) {
         `;
         tbody.appendChild(row);
     });
-    
-    // Показываем результаты
+
+    // Показываем блок с результатами
     document.getElementById('results').style.display = 'block';
 }
 
-// Вспомогательные функции
+// Вспомогательные функции для работы с интерфейсом
+
+// Отображение статуса операции в интерфейсе
 function showStatus(message, type) {
     const container = document.getElementById('status');
     container.innerHTML = `<div class="status status-${type}">${message}</div>`;
 }
 
+// Получение иконки для отображения статуса задания
 function getStatusIcon(status) {
     const icons = {
         'processing': '🔄',
@@ -171,15 +178,17 @@ function getStatusIcon(status) {
     return icons[status] || '📋';
 }
 
+// Заглушка для функции скачивания отчета (пока не реализована)
 function downloadReport() {
     alert('Функция скачивания отчета будет реализована');
 }
 
+// Заглушка для функции визуализации результатов (пока не реализована)
 function visualizeResults() {
     alert('Функция визуализации будет реализована');
 }
 
-// Инициализация
+// Инициализация приложения при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
-    loadClassificationHistory('all');
+    loadClassificationHistory('all'); // Загружаем историю всех заданий классификации
 });

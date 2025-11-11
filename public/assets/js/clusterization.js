@@ -82,9 +82,21 @@ async function loadCorpusHistory() {
                 console.log(corpus);
                 const option = document.createElement('option');
                 option.value = corpus.id;
-                // Use corpus.files_count if available, otherwise fallback to corpus.files
-                const fileCount = corpus.files;
-                option.textContent = corpus.name || `${corpus.id}. Модель ${getModelNameById(corpus.model)}. Дата создания ${corpus.date}. Файлов ${fileCount}`;
+
+                // Format date consistently
+                const formattedDate = formatDate(corpus.date);
+
+                // Build comprehensive display text with name first
+                const displayParts = [];
+                if (corpus.name) {
+                    displayParts.push(`${corpus.name}`);
+                }
+                displayParts.push(`ID: ${corpus.id}`);
+                displayParts.push(`Модель: ${getModelNameById(corpus.model)}`);
+                displayParts.push(`Дата: ${formattedDate}`);
+                displayParts.push(`Файлов: ${corpus.files || 0}`);
+
+                option.textContent = displayParts.join(' | ');
                 option.dataset.corpusId = corpus.id;
                 option.dataset.modelId = corpus.model;
                 option.dataset.timestamp = corpus.date;
@@ -215,7 +227,7 @@ async function getClusteringResults(resultUrl) {
         clearInterval(timerInterval);
         corpusSelect.disabled = false;
         startClusteringBtn.disabled = false;
-        startClusteringBtn.innerHTML = '🚀 Запустить кластеризацию';
+        startClusteringBtn.innerHTML = 'Запустить кластеризацию';
         exportBtn.disabled = false;
 
         displayClusters(results);
@@ -522,22 +534,23 @@ function displayClusterDocuments(documents) {
     });
 }
 
+// Отображение ссылок на визуализации кластеризации
 function displayVisualizations(visualizationData) {
     const visualizationsContainer = document.getElementById('visualizationsContainer');
     if (!visualizationsContainer) return;
 
     const hasVisualizations = visualizationData.graphic_representation ||
-                             visualizationData.planetar_representation ||
-                             visualizationData.drill_down_representation;
+                              visualizationData.planetar_representation ||
+                              visualizationData.drill_down_representation;
 
     if (hasVisualizations) {
         visualizationsContainer.style.display = 'block';
 
-        // Construct frontend URL with port 3000
+        // Формируем URL фронтенда с портом 3000
         const currentLocation = window.location;
         const frontendUrl = `${currentLocation.protocol}//${currentLocation.hostname}:3000`;
 
-        let html = '<h4 style="margin-bottom: 15px; color: #2c3e50;">🌐 Визуализации кластеризации</h4><div style="display: flex; flex-wrap: wrap; gap: 15px;">';
+        let html = '<h4 style="margin-bottom: 15px; color: #2c3e50;">Визуализации кластеризации</h4><div style="display: flex; flex-wrap: wrap; gap: 15px;">';
 
         if (visualizationData.graphic_representation) {
             const fullUrl = frontendUrl + visualizationData.graphic_representation;
@@ -557,6 +570,7 @@ function displayVisualizations(visualizationData) {
     }
 }
 
+// Просмотр содержимого документа из кластера
 async function previewDocument(documentInfo) {
     try {
         previewContent.textContent = 'Загрузка содержимого...';
@@ -579,6 +593,7 @@ async function previewDocument(documentInfo) {
     }
 }
 
+// Экспорт результатов кластеризации в JSON файл
 async function exportResults() {
     if (!clustersData) {
         showStatus('Нет данных для экспорта', 'warning');
@@ -611,22 +626,26 @@ async function exportResults() {
     }
 }
 
+// Отображение статуса операции в интерфейсе
 function showStatus(message, type) {
     statusText.textContent = message;
     statusMessage.className = 'status-message status-' + type;
 }
 
+// Обновление индикатора прогресса
 function updateProgress(percent, message) {
     progressBar.style.width = percent + '%';
     if (message) statusText.textContent = message;
 }
 
+// Запуск таймера выполнения кластеризации
 function startTimer() {
     startTime = new Date();
     clearInterval(timerInterval);
     timerInterval = setInterval(updateTimer, 1000);
 }
 
+// Обновление отображения таймера
 function updateTimer() {
     const now = new Date();
     const diff = now - startTime;
@@ -636,12 +655,36 @@ function updateTimer() {
     timerElement.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
+// Форматирование размера файла в человеко-читаемый вид
 function formatFileSize(bytes) {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1048576) return (bytes / 1024).toFixed(2) + ' KB';
     return (bytes / 1048576).toFixed(2) + ' MB';
 }
 
+// Форматирование даты в человеко-читаемый вид
+function formatDate(dateString) {
+    if (!dateString) return 'Неизвестно';
+
+    try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return 'Некорректная дата';
+
+        // Format as DD.MM.YYYY HH:MM
+        const day = date.getDate().toString().padStart(2, '0');
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const year = date.getFullYear();
+        const hours = date.getHours().toString().padStart(2, '0');
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+
+        return `${day}.${month}.${year} ${hours}:${minutes}`;
+    } catch (error) {
+        console.error('Error formatting date:', error);
+        return 'Ошибка формата';
+    }
+}
+
+// Сброс интерфейса в исходное состояние
 function resetUI() {
     corpusSelect.disabled = false;
     startClusteringBtn.disabled = false;
