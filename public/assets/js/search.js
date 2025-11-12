@@ -192,17 +192,16 @@ async function searchDocuments() {
     }
 }
 
-// Отображение результатов поиска в таблице
 function displaySearchResults(results) {
     const searchResults = document.getElementById('searchResults');
     let html = `
         <div class="table-responsive">
-            <table class="table table-striped">
+            <table class="table table-striped table-hover">
                 <thead>
                     <tr>
-                        <th>Документ</th>
-                        <th>Фрагмент</th>
-                        <th>Сходство</th>
+                        <th style="width: 25%; min-width: 200px;">Документ</th>
+                        <th style="width: 60%;">Фрагмент текста</th>
+                        <th style="width: 15%; min-width: 100px;">Сходство</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -213,11 +212,15 @@ function displaySearchResults(results) {
         html += `
             <tr>
                 <td>
-                    <strong>${result.file_id}</strong><br>
-                    <small class="text-muted">${result.fragment || ''}</small>
+                    <div class="file-info">
+                        <strong class="file-name">${result.file_id}</strong>
+                        ${result.fragment ? `<div class="fragment-info text-muted">${result.fragment}</div>` : ''}
+                    </div>
                 </td>
-                <td>${result.preview || ''}</td>
-                <td>${result.score.toFixed(4)}</td>
+                <td class="preview-text">${result.preview || ''}</td>
+                <td>
+                    <span class="similarity-badge">${result.score.toFixed(4)}</span>
+                </td>
             </tr>
         `;
     });
@@ -226,11 +229,62 @@ function displaySearchResults(results) {
                 </tbody>
             </table>
         </div>
-        <p class="mt-2">Найдено результатов: ${results.results.length}</p>
+        <div class="mt-3">
+            <p class="mb-0 text-muted">Найдено результатов: ${results.results.length}</p>
+        </div>
     `;
 
     searchResults.innerHTML = html;
-    document.getElementById('resultsContainer').classList.remove('hidden'); // Показываем контейнер результатов
+    document.getElementById('resultsContainer').classList.remove('hidden');
+
+    // Добавляем CSS для правильного переноса текста
+    const style = document.createElement('style');
+    style.textContent = `
+        .file-info {
+            max-width: 100%;
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+        .file-name {
+            font-size: 0.9rem;
+            line-height: 1.2;
+            word-wrap: break-word;
+            word-break: break-word;
+            white-space: normal;
+        }
+        .fragment-info {
+            font-size: 0.8rem;
+            margin-top: 4px;
+            word-wrap: break-word;
+            word-break: break-word;
+            white-space: normal;
+        }
+        .preview-text {
+            font-size: 0.9rem;
+            line-height: 1.4;
+            text-align: justify;
+            word-wrap: break-word;
+            word-break: break-word;
+            white-space: normal;
+        }
+        .similarity-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .table th {
+            border-top: none;
+            font-weight: 600;
+        }
+        .table td {
+            vertical-align: top;
+        }
+    `;
+    document.head.appendChild(style);
 
     // Прокрутка страницы к результатам
     document.getElementById('resultsContainer').scrollIntoView({ behavior: 'smooth' });

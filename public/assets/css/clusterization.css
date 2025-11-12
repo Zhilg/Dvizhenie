@@ -533,7 +533,7 @@ footer {
 }
 
 .cluster-tree-wrapper {
-    max-height: 500px;
+    max-height: none;
     overflow: hidden;
     border: 1px solid #ddd;
     border-radius: 4px;
@@ -542,7 +542,7 @@ footer {
 }
 
 .cluster-tree-container {
-    max-height: 500px;
+    max-height: none;
     overflow-y: auto;
     overflow-x: auto;
     padding: 8px;
