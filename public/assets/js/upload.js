@@ -153,7 +153,7 @@ async function checkUploadStatus() {
             setTimeout(checkUploadStatus, 5000);
         }
         else if (status.status === 'completed') {
-            updateUploadProgress(100, 'Загрузка завершена! Получение результатов...');
+            updateUploadProgress(100, '✅ Результаты получены. Смотрите ниже.', 'success');
             await getUploadResults(status.result_url, currentCorpusName); // Получение результатов
             resetUploadButton(); // Восстановление кнопки
         }
@@ -166,13 +166,17 @@ async function checkUploadStatus() {
 }
 
 // Обновление индикатора прогресса загрузки
-function updateUploadProgress(percent, message) {
+function updateUploadProgress(percent, message, type = 'info') {
     const progressBar = document.getElementById('uploadProgressBar');
     const statusElement = document.getElementById('uploadStatus');
 
     progressBar.style.width = percent + '%';
     progressBar.setAttribute('aria-valuenow', percent);
     statusElement.textContent = message;
+
+    // Удаление предыдущих классов типа
+    statusElement.classList.remove('status-success', 'status-info', 'status-error');
+    statusElement.classList.add(`status-${type}`);
 }
 
 // Восстановление состояния кнопки загрузки

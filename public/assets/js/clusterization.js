@@ -574,6 +574,10 @@ function displayVisualizations(visualizationData) {
 async function previewDocument(documentInfo) {
     try {
         previewContent.textContent = 'Загрузка содержимого...';
+        const previewTitle = document.getElementById('previewTitle');
+        previewTitle.textContent = 'Предпросмотр документа';
+        previewTitle.classList.remove('highlight-file');
+
         if (!documentInfo.name || !currentCorpusId) {
             previewContent.textContent = 'Недостаточно информации для загрузки документа';
             return;
@@ -587,9 +591,17 @@ async function previewDocument(documentInfo) {
 
         const content = await response.text();
         previewContent.textContent = content;
+
+        // Обновление заголовка с именем файла и подсветка
+        const fileName = documentInfo.name || documentInfo.filename || 'Неизвестный файл';
+        previewTitle.textContent = `Предпросмотр: ${fileName}`;
+        previewTitle.classList.add('highlight-file');
     } catch (error) {
         console.error('Error previewing document:', error);
         previewContent.textContent = 'Ошибка загрузки содержимого: ' + error.message;
+        const previewTitle = document.getElementById('previewTitle');
+        previewTitle.textContent = 'Предпросмотр документа';
+        previewTitle.classList.remove('highlight-file');
     }
 }
 
