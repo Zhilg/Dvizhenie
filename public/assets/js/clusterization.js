@@ -28,6 +28,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadCorpusHistory();
     startClusteringBtn.addEventListener('click', startClustering);
     exportBtn.addEventListener('click', exportResults);
+    
+    // Setup JSON upload functionality
+    setupJsonUpload();
 });
 
 async function loadModels() {
@@ -605,6 +608,236 @@ async function previewDocument(documentInfo) {
     }
 }
 
+let uploadedCorpusMetadata = null; // Global variable to store uploaded corpus metadata
+let uploadedCorpusName = null;     // Global variable to store corpus name
+let uploadedModelInfo = null;      // Global variable to store model information
+
+// Setup JSON upload event listeners
+function setupJsonUpload() {
+    const uploadBtn = document.getElementById('uploadBtn');
+    const fileInput = document.getElementById('jsonUpload');
+    
+    if (uploadBtn && fileInput) {
+        uploadBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        fileInput.addEventListener('change', handleFileUpload);
+    }
+}
+
+// Handle JSON file upload and processing
+async function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.name.toLowerCase().endsWith('.json')) {
+        showStatus('Пожалуйста, выберите файл с расширением .json', 'error');
+        return;
+    }
+    
+    // Validate file size (max 50MB)
+    if (file.size > 50 * 1024 * 1024) {
+        showStatus('Размер файла не должен превышать 50 МБ', 'error');
+        return;
+    }
+    
+    try {
+        showStatus('Загрузка файла...', 'info');
+        const fileContent = await readFileAsText(file);
+        showStatus('Парсинг JSON...', 'info');
+        
+        let jsonData;
+        try {
+            jsonData = JSON.parse(fileContent);
+        } catch (parseError) {
+            throw new Error('Некорректный JSON файл: ' + parseError.message);
+        }
+        
+        showStatus('Валидация данных...', 'info');
+        
+        // Validate clustering result schema
+        const validationResult = validateClusteringSchema(jsonData);
+        if (!validationResult.isValid) {
+            throw new Error('Неверный формат данных: ' + validationResult.errors.join(', '));
+        }
+        
+        showStatus('Загрузка результатов...', 'info');
+        
+        // Process and display the uploaded data
+        await processUploadedClusteringResults(jsonData);
+        
+        const fileCount = calculateTotalFileCount(clustersData.data.children);
+        const corpusName = uploadedCorpusName || `Корпус_${currentCorpusId}`;
+        const model = uploadedModelInfo || 'Неизвестная модель';
+        const corpusId = currentCorpusId || 'неизвестный';
+        
+        const successMessage = `✅ Файл успешно загружен!
+Корпус: ${corpusName}
+Файлов: ${fileCount}
+Модель: ${model}
+ID: ${corpusId}`;
+        
+        showStatus(successMessage, 'success');
+        
+    } catch (error) {
+        console.error('JSON upload error:', error);
+        showStatus('❌ Ошибка: ' + error.message, 'error');
+    } finally {
+        // Clear file input
+        event.target.value = '';
+    }
+}
+
+// Validate clustering result schema
+function validateClusteringSchema(data) {
+    const errors = [];
+    
+    // Check if data is an object
+    if (!data || typeof data !== 'object') {
+        errors.push('Данные должны быть объектом');
+        return { isValid: false, errors };
+    }
+    
+    // Check for required data structure - support both legacy and API formats
+    let clustersArray = null;
+    
+    if (data.timestamp && data.corpus_id && data.clusters) {
+        // Legacy format
+        clustersArray = data.clusters;
+    } else if (data.data && data.data.children) {
+        // API format
+        clustersArray = data.data.children;
+    } else {
+        errors.push('Отсутствует обязательная структура данных (timestamp+corpus_id+clusters или data+children)');
+        return { isValid: false, errors };
+    }
+    
+    // Validate clusters array
+    if (!clustersArray || !Array.isArray(clustersArray)) {
+        errors.push('Clusters должно быть массивом');
+        return { isValid: false, errors };
+    }
+    
+    // Validate each cluster
+    clustersArray.forEach((cluster, index) => {
+        if (!cluster || typeof cluster !== 'object') {
+            errors.push(`Кластер ${index + 1} должен быть объектом`);
+            return;
+        }
+        
+        // Check required fields
+        if (cluster.id === undefined) {
+            errors.push(`Кластер ${index + 1} должен иметь поле "id"`);
+        }
+        
+        if (cluster.name === undefined) {
+            errors.push(`Кластер ${index + 1} должен иметь поле "name"`);
+        }
+        
+        if (cluster.fileCount === undefined) {
+            errors.push(`Кластер ${index + 1} должен иметь поле "fileCount"`);
+        }
+        
+        // Validate nested structures if present
+        if (cluster.children && !Array.isArray(cluster.children)) {
+            errors.push(`Поле "children" в кластере ${index + 1} должно быть массивом`);
+        }
+        
+        if (cluster.files && !Array.isArray(cluster.files)) {
+            errors.push(`Поле "files" в кластере ${index + 1} должно быть массивом`);
+        }
+    });
+    
+    return {
+        isValid: errors.length === 0,
+        errors
+    };
+}
+
+// Process uploaded clustering results
+async function processUploadedClusteringResults(jsonData) {
+    try {
+        // Determine format and convert if needed
+        if (jsonData.timestamp && jsonData.corpus_id && jsonData.clusters) {
+            // Legacy format - convert to API format
+            clustersData = {
+                folder: `shared_data/corpus_${jsonData.corpus_id}`,
+                data: {
+                    id: "root",
+                    name: "Все кластеры",
+                    children: jsonData.clusters
+                }
+            };
+            
+            // Store ALL metadata from uploaded file
+            uploadedCorpusMetadata = { ...jsonData }; // Preserves ALL fields including visualization links
+            
+            // Store individual components for convenience
+            uploadedCorpusName = jsonData.corpus_name || getCorpusNameFromClusters(jsonData.clusters) || `Корпус_${jsonData.corpus_id}`;
+            uploadedModelInfo = jsonData.model || 'Неизвестная модель';
+            currentCorpusId = jsonData.corpus_id;
+            
+        } else if (jsonData.data && jsonData.data.children) {
+            // API format - use as is
+            clustersData = jsonData;
+        } else {
+            throw new Error('Неверный формат данных кластеризации');
+        }
+
+        // Display clusters and visualizations using existing functions
+        displayClusters(clustersData);
+        displayVisualizations(clustersData);
+        
+        // Enable export button
+        exportBtn.disabled = false;
+        
+    } catch (error) {
+        console.error('Error processing uploaded data:', error);
+        throw new Error('Ошибка обработки загруженных данных: ' + error.message);
+    }
+}
+
+// Calculate total file count from cluster hierarchy
+function calculateTotalFileCount(clusters) {
+    if (!clusters || !Array.isArray(clusters)) return 0;
+    
+    let total = 0;
+    clusters.forEach(cluster => {
+        if (cluster.fileCount) {
+            total += cluster.fileCount;
+        }
+        if (cluster.children && Array.isArray(cluster.children)) {
+            total += calculateTotalFileCount(cluster.children);
+        }
+    });
+    return total;
+}
+
+// Extract corpus name from cluster names if not provided
+function getCorpusNameFromClusters(clusters) {
+    if (!clusters || !Array.isArray(clusters) || clusters.length === 0) return null;
+    
+    // Try to get a meaningful name from the root clusters
+    const rootClusterNames = clusters.map(c => c.name).filter(name => name);
+    if (rootClusterNames.length > 0) {
+        return rootClusterNames.join(', ');
+    }
+    
+    return null;
+}
+
+// Чтение файла как текст
+function readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = () => reject(new Error('Ошибка чтения файла'));
+        reader.readAsText(file);
+    });
+}
+
 // Экспорт результатов кластеризации в JSON файл
 async function exportResults() {
     if (!clustersData) {
@@ -614,12 +847,47 @@ async function exportResults() {
 
     try {
         showStatus('Подготовка экспорта...', 'info');
-        const exportData = {
-            timestamp: new Date().toISOString(),
-            corpus_id: currentCorpusId,
-            model: modelSelect.value,
-            clusters: clustersData.data.children || []
-        };
+        
+        // Create deep copy to avoid modifying original data
+        const clustersToExport = JSON.parse(JSON.stringify(clustersData.data.children || []));
+        
+        // Use preserved metadata if available (from uploaded file), otherwise create new
+        let exportData;
+        if (uploadedCorpusMetadata && uploadedCorpusMetadata.timestamp && uploadedCorpusMetadata.corpus_id) {
+            // PRESERVE ALL ORIGINAL FIELDS from uploaded file using spread operator
+            exportData = { ...uploadedCorpusMetadata };  // ALL original fields including visualization links, model, etc.
+            exportData.clusters = clustersToExport;       // Updated clusters with preserved similarityDistribution
+            
+            // Update file_count with calculated value (in case clusters changed)
+            exportData.file_count = calculateTotalFileCount(clustersToExport);
+            
+            console.log('Exporting with ALL preserved fields:', {
+                hasGraphicRep: !!exportData.graphic_representation,
+                hasPlanetarRep: !!exportData.planetar_representation,
+                hasModel: !!exportData.model,
+                fileCount: exportData.file_count,
+                corpusName: exportData.corpus_name
+            });
+            
+        } else {
+            // Create new metadata for data generated in current session
+            const totalFileCount = calculateTotalFileCount(clustersToExport);
+            
+            exportData = {
+                timestamp: new Date().toISOString(),
+                corpus_id: currentCorpusId || 'exported_corpus',
+                corpus_name: uploadedCorpusName || `Экспортированный_корпус_${new Date().toISOString().slice(0, 10)}`,
+                file_count: totalFileCount,
+                model: uploadedModelInfo || 'Неизвестная модель',
+                clusters: clustersToExport
+            };
+            
+            console.log('Exporting with new metadata:', {
+                corpusName: exportData.corpus_name,
+                fileCount: exportData.file_count,
+                model: exportData.model
+            });
+        }
 
         const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);

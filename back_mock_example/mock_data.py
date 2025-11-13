@@ -955,6 +955,7 @@ MOCK_CLUSTER_RESULT = {
                         "name": "Искусственный интеллект",
                         "fileCount": 4580,
                         "avgSimilarity": 0.91,
+                        "similarityDistribution": [0, 0.1, 0.2, 0.3, 0.4],
                         "files": [{"name": "neural_networks.pdf"}],
                         "children": [
                             {
@@ -962,6 +963,7 @@ MOCK_CLUSTER_RESULT = {
                                 "name": "Машинное обучение",
                                 "fileCount": 2345,
                                 "avgSimilarity": 0.94,
+                                "similarityDistribution": [0, 0.1, 0.2, 0.3, 0.4],
                                 "files": [{"name": "ml_algorithms.docx"}],
                                 "children": [
                                     {

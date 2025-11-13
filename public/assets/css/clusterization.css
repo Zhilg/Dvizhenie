@@ -707,3 +707,15 @@ footer {
     font-weight: bold;
     border: 1px solid #ffeaa7;
 }
+
+/* Upload button styling */
+.btn-info {
+    background-color: #17a2b8;
+    border-color: #17a2b8;
+    color: white;
+}
+
+.btn-info:hover {
+    background-color: #138496;
+    border-color: #117a8b;
+}
