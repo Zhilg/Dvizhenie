@@ -92,7 +92,8 @@ async function loadCorpusHistory() {
                 // Build comprehensive display text with name first
                 const displayParts = [];
                 if (corpus.name) {
-                    displayParts.push(`${corpus.name}`);
+                    const displayName = decodeURIComponent(corpus.name);
+                    displayParts.push(`${displayName}`);
                 }
                 displayParts.push(`ID: ${corpus.id}`);
                 displayParts.push(`Модель: ${getModelNameById(corpus.model)}`);

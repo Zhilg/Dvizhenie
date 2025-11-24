@@ -85,31 +85,51 @@ function getModelNameById(modelId) {
 }
 
 // Загрузка выпадающего списка корпусов из истории
-function loadCorpusDropdown() {
-    const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
-    const corpusSelect = document.getElementById('corpusId');
+async function loadCorpusDropdown() {
+    try {
+        // Use server-side endpoint for consistency
+        const response = await fetch('/corpus-history');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const history = await response.json();
+        const corpusSelect = document.getElementById('corpusId');
 
-    const currentValue = corpusSelect.value; // Сохраняем текущее значение
-    corpusSelect.innerHTML = '<option value="">-- Выберите корпус --</option>'; // Очищаем список
-    
-    // Добавляем опции для каждого корпуса из истории
-    history.forEach(corpus => {
-        console.log(corpus);
-        const option = document.createElement('option');
-        option.value = corpus.id;
-        option.textContent = `${corpus.name} ID: ${corpus.id} (${getModelNameById(corpus.model) || 'неизвестна'}, файлов: ${corpus.files || '?'})`;
-        corpusSelect.appendChild(option);
-    });
+        const currentValue = corpusSelect.value; // Сохраняем текущее значение
+        corpusSelect.innerHTML = '<option value="">-- Выберите корпус --</option>'; // Очищаем список
+        
+        // Добавляем опции для каждого корпуса из истории
+        history.forEach(corpus => {
+            console.log(corpus);
+            const option = document.createElement('option');
+            option.value = corpus.id;
+            const displayName = corpus.name ? decodeURIComponent(corpus.name) : 'Без имени';
+            option.textContent = `${displayName} ID: ${corpus.id} (${getModelNameById(corpus.model) || 'неизвестна'}, файлов: ${corpus.files || '?'})`;
+            corpusSelect.appendChild(option);
+        });
 
-    // Восстанавливаем предыдущий выбор если он все еще доступен
-    if (currentValue && history.some(c => c.id === currentValue)) {
-        corpusSelect.value = currentValue;
-        updateCorpusInfo(); // Обновляем информацию о выбранном корпусе
+        // Восстанавливаем предыдущий выбор если он все еще доступен
+        if (currentValue && history.some(c => c.id === currentValue)) {
+            corpusSelect.value = currentValue;
+            updateCorpusInfo(); // Обновляем информацию о выбранном корпусе
+        }
+    } catch (error) {
+        console.error('Error loading corpus dropdown:', error);
+        // Fallback to localStorage if server fails
+        const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
+        const corpusSelect = document.getElementById('corpusId');
+        corpusSelect.innerHTML = '<option value="">-- Выберите корпус --</option>';
+        history.forEach(corpus => {
+            const option = document.createElement('option');
+            option.value = corpus.id;
+            const displayName = corpus.name ? decodeURIComponent(corpus.name) : 'Без имени';
+            option.textContent = `${displayName} ID: ${corpus.id} (${getModelNameById(corpus.model) || 'неизвестна'}, файлов: ${corpus.files || '?'})`;
+            corpusSelect.appendChild(option);
+        });
     }
 }
 
 // Обновление отображения информации о выбранном корпусе
-function updateCorpusInfo() {
+async function updateCorpusInfo() {
     const corpusId = document.getElementById('corpusId').value;
     const corpusInfoElement = document.getElementById('corpusInfo');
 
@@ -118,18 +138,38 @@ function updateCorpusInfo() {
         return;
     }
 
-    const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
-    const corpus = history.find(item => item.id === corpusId); // Ищем информацию о корпусе
+    try {
+        // Use server-side endpoint for consistency
+        const response = await fetch('/corpus-history');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const history = await response.json();
+        const corpus = history.find(item => item.id === corpusId); // Ищем информацию о корпусе
 
-    if (corpus) {
-        // Отображаем детальную информацию о корпусе
-        corpusInfoElement.innerHTML = `
-            <strong>Модель:</strong> ${getModelNameById(corpus.model) || 'неизвестна'} |
-            <strong>Файлов:</strong> ${corpus.files || 'неизвестно'} |
-            <strong>Загружен:</strong> ${formatDate(corpus.date)}
-        `;
-    } else {
-        corpusInfoElement.textContent = 'Информация о корпусе недоступна';
+        if (corpus) {
+            // Отображаем детальную информацию о корпусе
+            corpusInfoElement.innerHTML = `
+                <strong>Модель:</strong> ${getModelNameById(corpus.model) || 'неизвестна'} |
+                <strong>Файлов:</strong> ${corpus.files || 'неизвестно'} |
+                <strong>Загружен:</strong> ${formatDate(corpus.date)}
+            `;
+        } else {
+            corpusInfoElement.textContent = 'Информация о корпусе недоступна';
+        }
+    } catch (error) {
+        console.error('Error updating corpus info:', error);
+        // Fallback to localStorage if server fails
+        const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
+        const corpus = history.find(item => item.id === corpusId);
+        if (corpus) {
+            corpusInfoElement.innerHTML = `
+                <strong>Модель:</strong> ${getModelNameById(corpus.model) || 'неизвестна'} |
+                <strong>Файлов:</strong> ${corpus.files || 'неизвестно'} |
+                <strong>Загружен:</strong> ${formatDate(corpus.date)}
+            `;
+        } else {
+            corpusInfoElement.textContent = 'Информация о корпусе недоступна';
+        }
     }
 }
 
@@ -152,8 +192,22 @@ async function searchDocuments() {
     }
 
     // Получение информации о модели из истории корпусов
-    const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
-    const corpusInfo = history.find(item => item.id === corpusId);
+    let corpusInfo;
+    try {
+        const response = await fetch('/corpus-history');
+        if (response.ok) {
+            const history = await response.json();
+            corpusInfo = history.find(item => item.id === corpusId);
+        }
+    } catch (error) {
+        console.warn('Failed to get corpus info from server, using localStorage fallback');
+    }
+    
+    // Fallback to localStorage if server fails
+    if (!corpusInfo) {
+        const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
+        corpusInfo = history.find(item => item.id === corpusId);
+    }
 
     if (!corpusInfo || !corpusInfo.model) {
         alert('Не удалось определить модель для выбранного корпуса');
@@ -291,58 +345,77 @@ function displaySearchResults(results) {
 }
 
 // Отображение модального окна с историей корпусов
-function showHistoryModal() {
-    const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
-    const modalBody = document.getElementById('historyModalBody');
+async function showHistoryModal() {
+    try {
+        // Use server-side endpoint for consistency
+        const response = await fetch('/corpus-history');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const history = await response.json();
+        const modalBody = document.getElementById('historyModalBody');
 
-    if (history.length === 0) {
-        modalBody.innerHTML = '<p>История корпусов пуста</p>';
-    } else {
-        // Формирование таблицы с историей корпусов
-        modalBody.innerHTML = `
-            <div class="table-responsive">
-                <table class="table table-sm">
-                    <thead>
-                        <tr>
-                            <th>ID корпуса</th>
-                            <th>Модель</th>
-                            <th>Файлов</th>
-                            <th>Дата</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${history.map(corpus => `
+        if (history.length === 0) {
+            modalBody.innerHTML = '<p>История корпусов пуста</p>';
+        } else {
+            // Формирование таблицы с историей корпусов
+            modalBody.innerHTML = `
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
                             <tr>
-                                <td><code>${corpus.id}</code></td>
-                                <td>${getModelNameById(corpus.model) || 'неизвестна'}</td>
-                                <td>${corpus.files || 'неизвестно'}</td>
-                                <td>${formatDate(corpus.date)}</td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-primary use-corpus-btn"
-                                        data-id="${corpus.id}">
-                                        Использовать
-                                    </button>
-                                </td>
+                                <th>ID корпуса</th>
+                                <th>Модель</th>
+                                <th>Файлов</th>
+                                <th>Дата</th>
+                                <th></th>
                             </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
+                        </thead>
+                        <tbody>
+                            ${history.map(corpus => `
+                                <tr>
+                                    <td><code>${corpus.id}</code></td>
+                                    <td>${getModelNameById(corpus.model) || 'неизвестна'}</td>
+                                    <td>${corpus.files || 'неизвестно'}</td>
+                                    <td>${formatDate(corpus.date)}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary use-corpus-btn"
+                                            data-id="${corpus.id}">
+                                            Использовать
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
 
-        // Добавление обработчиков событий для кнопок "Использовать"
-        document.querySelectorAll('.use-corpus-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                document.getElementById('corpusId').value = this.getAttribute('data-id'); // Выбор корпуса
-                bootstrap.Modal.getInstance(document.getElementById('historyModal')).hide(); // Закрытие модального окна
-                updateCorpusInfo(); // Обновление информации о корпусе
+            // Добавление обработчиков событий для кнопок "Использовать"
+            document.querySelectorAll('.use-corpus-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.getElementById('corpusId').value = this.getAttribute('data-id'); // Выбор корпуса
+                    bootstrap.Modal.getInstance(document.getElementById('historyModal')).hide(); // Закрытие модального окна
+                    updateCorpusInfo(); // Обновление информации о корпусе
+                });
             });
-        });
-    }
+        }
 
-    // Показ модального окна
-    new bootstrap.Modal(document.getElementById('historyModal')).show();
+        // Показ модального окна
+        new bootstrap.Modal(document.getElementById('historyModal')).show();
+    } catch (error) {
+        console.error('Error showing history modal:', error);
+        // Fallback to localStorage if server fails
+        const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
+        const modalBody = document.getElementById('historyModalBody');
+        
+        if (history.length === 0) {
+            modalBody.innerHTML = '<p>История корпусов пуста (сервер недоступен)</p>';
+        } else {
+            modalBody.innerHTML = '<p>Ошибка загрузки с сервера, показаны локальные данные</p>';
+        }
+        
+        new bootstrap.Modal(document.getElementById('historyModal')).show();
+    }
 }
 
 // Загрузка истории корпусов с сервера с fallback на localStorage

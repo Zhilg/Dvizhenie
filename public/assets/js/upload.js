@@ -99,14 +99,26 @@ async function uploadDocuments() {
         }
 
         // Отправка файлов на сервер для семантической обработки
+        console.log('=== DEBUG: Client sending upload request ===');
+        console.log('corpusNameValue:', corpusNameValue);
+        console.log('corpusNameValue encoding:', new TextEncoder().encode(corpusNameValue));
+        console.log('modelId:', modelSelect.value);
+        console.log('ttlHours:', ttlHours || '0');
+        console.log('Files count:', folderInput.files.length);
+        
         const response = await fetch(`${BASE_URL}/semantic/upload`, {
             method: 'POST',
             headers: {
                 'x-model-id': modelSelect.value, // ID выбранной модели
                 'x-ttl-hours': ttlHours || '0', // Время жизни корпуса
+                'x-corpus-name': encodeURIComponent(corpusNameValue), // Имя корпуса с URL encoding
             },
             body: formData
         });
+        
+        console.log('=== DEBUG: Response received ===');
+        console.log('Response status:', response.status);
+        console.log('=== END DEBUG ===');
 
         if (!response.ok) throw new Error(await response.text());
 
@@ -116,16 +128,18 @@ async function uploadDocuments() {
         currentCorpusName = corpusNameValue; // Сохранение имени корпуса глобально
 
         // Отображение информации о начатой загрузке
+        const displayCorpusName = decodeURIComponent(corpusNameValue); // Ensure proper display
         document.getElementById('uploadResults').innerHTML = `
             <div class="alert alert-info">
                 <h4 class="alert-heading">Загрузка начата</h4>
                 <p><strong>ID задачи:</strong> ${currentJobId}</p>
                 <p><strong>Примерное время:</strong> ${data.estimated_time_min || 'неизвестно'} минут</p>
-                <p><strong>Имя корпуса:</strong> ${corpusNameValue}</p>
+                <p><strong>Имя корпуса:</strong> ${displayCorpusName}</p>
+                <p><strong>Статус:</strong> Обработка продолжается на сервере</p>
             </div>
         `;
 
-        // Запуск проверки статуса загрузки
+        // Запуск серверной проверки статуса загрузки
         checkUploadStatus();
 
     } catch (error) {
@@ -140,6 +154,7 @@ async function checkUploadStatus() {
     if (!currentJobId) return;
 
     try {
+        // Use original API endpoint - server-side polling is transparent to client
         const response = await fetch(`${BASE_URL}/jobs/${currentJobId}`);
         if (!response.ok) throw new Error(await response.text());
 
@@ -149,19 +164,19 @@ async function checkUploadStatus() {
             const progress = status.progress || 0;
             updateUploadProgress(progress, `Обработка: ${progress.toFixed(1)}%`);
 
-            // Повторная проверка через 5 секунд
+            // Continue polling - server handles background processing
             setTimeout(checkUploadStatus, 5000);
         }
         else if (status.status === 'completed') {
             updateUploadProgress(100, '✅ Результаты получены. Смотрите ниже.', 'success');
-            await getUploadResults(status.result_url, currentCorpusName); // Получение результатов
-            resetUploadButton(); // Восстановление кнопки
+            await getUploadResults(status.result_url, currentCorpusName);
+            resetUploadButton();
         }
 
     } catch (error) {
         console.error("Status check error:", error);
         showError('Ошибка проверки статуса: ' + error.message);
-        resetUploadButton(); // Восстановление кнопки при ошибке
+        resetUploadButton();
     }
 }
 
@@ -226,13 +241,15 @@ async function processSuccessfulResponse(response, corpusName) {
     saveCorpusToHistory(results.corpus_id, modelId, results.file_count, corpusName);
 
     // Отображение результатов загрузки
+    const displayCorpusName = decodeURIComponent(corpusName); // Ensure proper display of Russian names
     document.getElementById('uploadResults').innerHTML = `
         <div class="alert alert-success">
             <h4 class="alert-heading">✅ Загрузка завершена</h4>
-            <p><strong>Имя корпуса:</strong> ${corpusName}</p>
+            <p><strong>Имя корпуса:</strong> ${displayCorpusName}</p>
             <p><strong>ID корпуса:</strong> ${results.corpus_id}</p>
             <p><strong>Модель:</strong> ${getModelNameById(modelId)}</p>
             <p><strong>Файлов:</strong> ${results.file_count}</p>
+            <p><strong>Статус:</strong> Корпус автоматически сохранен в истории</p>
             <p class="mb-0"><small>Корпус успешно загружен и проиндексирован</small></p>
         </div>
     `;
@@ -248,7 +265,7 @@ function saveCorpusToHistory(corpusId, modelId, files, corpusNameValue) {
 
     const corpusInfo = {
         id: corpusId,
-        name: corpusNameValue,
+        name: corpusNameValue, // Store the decoded name
         model: modelId,
         files: files,
         date: new Date().toISOString()
