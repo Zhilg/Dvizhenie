@@ -239,10 +239,9 @@ class JobManager {
           console.log(`=== DEBUG: Статус задачи ${jobId}: ${status.status} ===`);
 
           if (status.status === 'processing') {
-            // Продолжаем опрос каждые 5 секунд
-            setTimeout(pollJob, 5000);
+            // Интервал опроса 10 секунд
+            setTimeout(pollJob, 10000);
           } else if (status.status === 'completed') {
-            // Задача завершена, автоматически обрабатываем результаты
             this.pollQueue.set(jobId, {
               status: 'completed',
               result: status,
