@@ -7,25 +7,21 @@ const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const cosineSimilarity = require('cosine-similarity');
 const fs = require('fs');
-const CorpusDatabase = require('./database');
+const CorpusDatabase = require('./modules/database');
+const JobManager = require('./modules/jobs');
+const config = require('./config');
 
 const app = express();
-const PORT = 4000;
-const SHARED_DATA_PATH = "/app/shared_data";
-const BACKEND_SERVICE_URL = 'http://back-service:3000/api';
 
-// Инициализируем базу данных корпусов
-const corpusDB = new CorpusDatabase(SHARED_DATA_PATH);
+// Инициализируем модули
+const corpusDB = new CorpusDatabase(config.SHARED_DATA_PATH);
+const jobManager = new JobManager(config.BACKEND_SERVICE_URL, corpusDB);
 
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json({ limit: 'Infinity' }));
-app.use(express.text({ type: 'text/plain', limit: 'Infinity' }));
-
-
-let jobsDB = { jobs: [] };
-let pollQueue = new Map(); // Для отслеживания задач загрузки
+app.use(express.json({ limit: config.express.jsonLimit }));
+app.use(express.text({ type: 'text/plain', limit: config.express.textLimit }));
 
 const handleProxyError = (error, serviceName, res) => {
   console.error(`Proxy error for ${serviceName}:`, error);
@@ -49,197 +45,8 @@ const handleProxyError = (error, serviceName, res) => {
   }
 };
 
-const saveJobToDB = async (jobData) => {
-  try {
-    if (!jobData.created_at) {
-      jobData.created_at = new Date().toISOString();
-    }
-    
-    jobsDB.jobs.push(jobData);
-    console.log(`Задача сохранена в БД: ${jobData.job_id} (тип: ${jobData.type})`);
-    
-    return true;
-  } catch (error) {
-    console.error('Ошибка сохранения задачи в БД:', error);
-    return false;
-  }
-};
-
-// Обработка завершенной задачи загрузки и сохранение в историю корпусов
-const processCompletedUploadJob = async (jobId, status) => {
-  try {
-    console.log(`=== DEBUG: Обработка завершенной задачи загрузки ${jobId} ===`);
-    
-    // Получаем данные задачи из jobsDB для поиска информации о корпусе
-    const job = jobsDB.jobs.find(j => j.job_id === jobId);
-    console.log('=== DEBUG: Найдены данные задачи ===');
-    console.log('Задача найдена:', !!job);
-    if (job) {
-      console.log('Данные задачи:', JSON.stringify(job, null, 2));
-      console.log('Имя корпуса в задаче:', job.corpus_name);
-      console.log('Тип имени корпуса:', typeof job.corpus_name);
-      console.log('Длина имени корпуса:', job.corpus_name ? job.corpus_name.length : 'Н/Д');
-    } else {
-      console.log('Задача не найдена в jobsDB');
-      console.log('Всего задач в БД:', jobsDB.jobs.length);
-      console.log('Доступные ID задач:', jobsDB.jobs.map(j => j.job_id));
-    }
-    console.log('=== КОНЕЦ DEBUG ===');
-    
-    if (!job) {
-      console.error(`Задача ${jobId} не найдена в jobsDB`);
-      return;
-    }
-
-    // Используем ту же логику построения URL, что и в существующем /api/result
-    const resultUrl = status.result_url;
-    let response;
-    
-    try {
-      // Первая попытка - прямой запрос
-      response = await axios.get(resultUrl, { 
-        timeout: 10000,
-        validateStatus: () => true
-      });
-      console.log("Статус основного запроса:", response.status);
-    } catch (primaryError) {
-      console.log("Основной запрос завершился с ошибкой:", primaryError.message);
-      // Используем ту же логику фоллбэка, что и /api/result
-      if (primaryError.code === 'ENOTFOUND' || primaryError.code === 'ECONNREFUSED' || 
-          primaryError.code === 'ECONNABORTED' || primaryError.code === 'ETIMEDOUT' || 
-          primaryError.code === 'ERR_INVALID_URL' || primaryError.code === 'EAI_AGAIN') {
-          
-        console.log("Обнаружена сетевая ошибка, пробуем фоллбэк...");
-        const fallbackUrl = await buildFallbackUrl(resultUrl);
-        console.log("URL фоллбэка:", fallbackUrl);
-        
-        response = await axios.get(fallbackUrl, {
-          timeout: 10000,
-          validateStatus: () => true
-        });
-        console.log("Статус запроса фоллбэка:", response.status);
-      } else {
-        throw primaryError;
-      }
-    }
-
-    // Если получили HTTP ошибку, генерируем исключение
-    if (response.status >= 400) {
-      throw new Error(`Не удалось получить результаты: ${response.statusText}`);
-    }
-
-    const results = response.data;
-    console.log('Получены результаты загрузки:', results);
-
-    // Обновляем jobsDB с правильным corpus_path из результатов бэкенда
-    const jobIndex = jobsDB.jobs.findIndex(j => j.job_id === jobId);
-    if (jobIndex !== -1 && results.corpus_path) {
-      jobsDB.jobs[jobIndex].corpus_path = results.corpus_path;
-      console.log(`Обновлена задача ${jobId} с правильным corpus_path: ${results.corpus_path}`);
-    }
-
-    // Обновляем количество файлов в корпусе
-    const updated = await corpusDB.updateCorpusFileCount(
-      `/${job.corpus_path?.replace('/', '') || job.corpusId}`,
-      results.corpus_id,
-      results.file_count
-    );
-    
-    if (!updated) {
-      // Fallback: создаем новую запись, если существующая не найдена
-      const corpusInfo = {
-        id: results.corpus_id,
-        name: job.corpus_name || 'Неизвестно',
-        model: job.model_id,
-        files: results.file_count,
-        corpus_path: `/${job.corpusId}`,
-        date: new Date().toISOString()
-      };
-      await corpusDB.saveCorpus(corpusInfo);
-      console.log(`Корпус ${results.corpus_id} сохранен в историю на стороне сервера (fallback)`);
-      console.log(`Корпус ${results.corpus_id} автоматически сохранен в историю на стороне сервера`);
-      console.log(`Имя корпуса: "${corpusInfo.name}", Файлов: ${corpusInfo.files}, Модель: ${corpusInfo.model}`);
-      console.log(`Корпус ${results.corpus_id} автоматически сохранен в историю`);
-    }
-    
-  } catch (error) {
-    console.error(`Ошибка обработки завершенной задачи загрузки ${jobId}:`, error);
-  }
-};
-
-// Серверная функция опроса для задач загрузки
-const pollUploadJob = async (jobId, corpusName, modelId, corpusId) => {
-  try {
-    console.log(`=== DEBUG: Запуск серверного опроса для задачи загрузки: ${jobId} ===`);
-    console.log('Полученные параметры:');
-    console.log('  jobId:', jobId);
-    console.log('  corpusName:', corpusName);
-    console.log('  modelId:', modelId);
-    console.log('=== КОНЕЦ DEBUG ===');
-    
-    const pollJob = async () => {
-      try {
-        // Проверяем статус задачи от бэкенда
-        const response = await axios.get(`${BACKEND_SERVICE_URL}/jobs/${jobId}`);
-        const status = response.data;
-
-        // Обновляем jobsDB
-        const jobIndex = jobsDB.jobs.findIndex(job => job.job_id === jobId);
-        if (jobIndex !== -1) {
-          jobsDB.jobs[jobIndex].status = status.status;
-          if (status.result_url) {
-            jobsDB.jobs[jobIndex].result_url = status.result_url;
-          }
-          jobsDB.jobs[jobIndex].progress = status.progress || 0;
-          jobsDB.jobs[jobIndex].updated_at = new Date().toISOString();
-        }
-
-        console.log(`=== DEBUG: Статус задачи ${jobId}: ${status.status} ===`);
-
-        if (status.status === 'processing') {
-          // Продолжаем опрос каждые 5 секунд
-          setTimeout(pollJob, 5000);
-        } else if (status.status === 'completed') {
-          // Задача завершена, автоматически обрабатываем результаты
-          pollQueue.set(jobId, {
-            status: 'completed',
-            result: status,
-            completed_at: new Date().toISOString()
-          });
-          console.log(`Задача загрузки ${jobId} завершена, автоматически обрабатываем результаты`);
-          
-          // Автоматически обрабатываем результаты и сохраняем в историю корпусов
-          try {
-            await processCompletedUploadJob(jobId, status, corpusId);
-          } catch (error) {
-            console.error(`Ошибка обработки завершенной задачи загрузки ${jobId}:`, error);
-          }
-        } else {
-          // Задача провалена или неизвестный статус
-          pollQueue.set(jobId, {
-            status: 'failed',
-            result: status,
-            failed_at: new Date().toISOString()
-          });
-          console.log(`Задача загрузки ${jobId} провалена: ${status.status}`);
-        }
-      } catch (error) {
-        console.error(`Ошибка опроса задачи загрузки ${jobId}:`, error);
-        // Продолжаем опрос при ошибке
-        setTimeout(pollJob, 10000);
-      }
-    };
-
-    // Начинаем опрос
-    setTimeout(pollJob, 5000);
-    
-  } catch (error) {
-    console.error(`Не удалось запустить опрос для задачи загрузки ${jobId}:`, error);
-  }
-};
-
 const getEmbedding = async (text, modelId) => {
-  const response = await axios.post(`${BACKEND_SERVICE_URL}/embedding`, text, {
+  const response = await axios.post(`${config.BACKEND_SERVICE_URL}/embedding`, text, {
     headers: {
       'Content-Type': 'text/plain',
       'x-model-id': modelId
@@ -303,7 +110,7 @@ app.get('/fine-tuning', (req, res) => {
 // Обработка текста
 app.post('/api/normalize', async (req, res) => {
   try {
-    const response = await axios.post(`${BACKEND_SERVICE_URL}/normalize`, req.body, {
+    const response = await axios.post(`${config.BACKEND_SERVICE_URL}/normalize`, req.body, {
       headers: {
         'Content-Type': 'text/plain',
         'Accept': 'text/plain'
@@ -322,7 +129,7 @@ app.post('/api/normalize', async (req, res) => {
 
 app.post('/api/similarity', express.json(), async (req, res) => {
   try {
-    const { text1, text2, modelId = 'default-model' } = req.body;
+    const { text1, text2, modelId = config.defaults.modelId } = req.body;
     
     if (!text1 || !text2) {
       return res.status(400).json({ error: 'Both texts are required' });
@@ -352,13 +159,13 @@ app.post('/api/similarity', express.json(), async (req, res) => {
 // Загрузка файлов
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    if (!fs.existsSync(SHARED_DATA_PATH)) {
-      fs.mkdirSync(SHARED_DATA_PATH, { recursive: true });
+    if (!fs.existsSync(config.SHARED_DATA_PATH)) {
+      fs.mkdirSync(config.SHARED_DATA_PATH, { recursive: true });
     }
     
     const corpusId = req.corpusId || uuidv4();
     req.corpusId = corpusId;
-    const corpusPath = path.join(SHARED_DATA_PATH, corpusId);
+    const corpusPath = path.join(config.SHARED_DATA_PATH, corpusId);
     
     if (!fs.existsSync(corpusPath)) {
       fs.mkdirSync(corpusPath);
@@ -375,8 +182,8 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
   try {
-    const modelId = req.headers['x-model-id'] || 'default-model';
-    const ttlHours = req.headers['x-ttl-hours'] || 0;
+    const modelId = req.headers['x-model-id'] || config.defaults.modelId;
+    const ttlHours = req.headers['x-ttl-hours'] || config.defaults.ttlHours;
     const corpusId = req.corpusId;
     let corpusName = req.headers['x-corpus-name'];
     
@@ -404,7 +211,7 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
     
     console.log(`Upload request received - Corpus name: "${corpusName}", Model: ${modelId}, Corpus ID: ${corpusId}`);
 
-    const response = await axios.post(`${BACKEND_SERVICE_URL}/semantic/upload`, {}, {
+    const response = await axios.post(`${config.BACKEND_SERVICE_URL}/semantic/upload`, {}, {
       headers: {
         'x-corpus-path': `/${corpusId}`,
         'x-model-id': modelId,
@@ -412,12 +219,12 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
       }
     });
 
-    // Сохраняем информацию о задаче в jobsDB
+    // Сохраняем информацию о задаче в JobManager
     const jobData = {
       job_id: response.data.job_id,
       type: 'upload',
       model_id: modelId,
-      corpus_path: `/${corpusId}`, // Путь к корпусу который мы отправляем, внутренняя БД, вернуться айдишник может другой
+      corpus_path: `/${corpusId}`,
       corpus_name: corpusName, 
       status: 'processing',
       created_at: new Date().toISOString(),
@@ -429,7 +236,7 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
     console.log('Имя корпуса в задаче:', jobData.corpus_name);
     console.log('=== КОНЕЦ DEBUG ===');
     
-    await saveJobToDB(jobData);
+    await jobManager.addJob(jobData);
 
     // Сохраняем корпус в БД немедленно с правильным путем
     const corpusInfo = {
@@ -443,8 +250,8 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
     
     await corpusDB.saveCorpus(corpusInfo);
 
-    // Start server-side polling for this upload job
-    pollUploadJob(response.data.job_id, corpusName, modelId, corpusId);
+    // Запускаем опрос задачи загрузки
+    jobManager.startUploadJobPolling(response.data.job_id, corpusName, modelId, corpusId);
 
     // Return job info for immediate response
     res.status(202).json({
@@ -464,11 +271,11 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
 
 app.post('/api/clusterization', async (req, res) => {
   try {
-    const modelId = req.headers['x-model-id'] || 'default-model';
-    const ttlHours = req.headers['x-ttl-hours'] || 0;
+    const modelId = req.headers['x-model-id'] || config.defaults.modelId;
+    const ttlHours = req.headers['x-ttl-hours'] || config.defaults.ttlHours;
     const corpusId = req.headers['x-corpus-id'];
 
-    const response = await axios.post(`${BACKEND_SERVICE_URL}/clusterization`, {}, {
+    const response = await axios.post(`${config.BACKEND_SERVICE_URL}/clusterization`, {}, {
       headers: {
         'x-corpus-path': corpusId, // для старых версий
         'x-corpus-id': corpusId, 
@@ -487,7 +294,7 @@ app.post('/api/clusterization', async (req, res) => {
       estimated_time_min: response.data.estimated_time_min || null
     };
     
-    await saveJobToDB(jobData);
+    await jobManager.addJob(jobData);
 
     res.status(202).json({
       ...response.data,
@@ -542,16 +349,16 @@ app.post('/api/classification', upload.array('files'), async (req, res) => {
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
-    const modelId = req.headers['x-model-id'] || 'default-model';
+    const modelId = req.headers['x-model-id'] || config.defaults.modelId;
     const clusteringJobId = req.headers['x-clustering-job-id'];
-    const ttlHours = req.headers['x-ttl-hours'] || 0;
+    const ttlHours = req.headers['x-ttl-hours'] || config.defaults.ttlHours;
     const corpusPath = `/shared_data/${req.corpusId}`;
 
     if (!clusteringJobId) {
       return res.status(400).json({ error: 'x-clustering-job-id header is required' });
     }
 
-    const response = await axios.post(`${BACKEND_SERVICE_URL}/classification`, {}, {
+    const response = await axios.post(`${config.BACKEND_SERVICE_URL}/classification`, {}, {
       headers: {
         'x-corpus-path': corpusPath,
         'x-model-id': modelId,
@@ -572,7 +379,7 @@ app.post('/api/classification', upload.array('files'), async (req, res) => {
       estimated_time_min: response.data.estimated_time_min || null
     };
     
-    await saveJobToDB(jobData);
+    await jobManager.addJob(jobData);
 
     res.status(202).json(response.data);
 
@@ -599,16 +406,16 @@ app.post('/api/classification/grnti', upload.array('files'), async (req, res) =>
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
-    const modelId = req.headers['x-model-id'] || 'default-model';
+    const modelId = req.headers['x-model-id'] || config.defaults.modelId;
     const clusteringJobId = req.headers['x-clustering-job-id'];
-    const ttlHours = req.headers['x-ttl-hours'] || 0;
+    const ttlHours = req.headers['x-ttl-hours'] || config.defaults.ttlHours;
     const corpusPath = `/shared_data/${req.corpusId}`;
 
     if (!clusteringJobId) {
       return res.status(400).json({ error: 'x-clustering-job-id header is required' });
     }
 
-    const response = await axios.post(`${BACKEND_SERVICE_URL}/classification/grnti`, {}, {
+    const response = await axios.post(`${config.BACKEND_SERVICE_URL}/classification/grnti`, {}, {
       headers: {
         'x-corpus-path': corpusPath,
         'x-model-id': modelId,
@@ -629,7 +436,7 @@ app.post('/api/classification/grnti', upload.array('files'), async (req, res) =>
       estimated_time_min: response.data.estimated_time_min || null
     };
     
-    await saveJobToDB(jobData);
+    await jobManager.addJob(jobData);
 
     res.status(202).json(response.data);
 
@@ -656,7 +463,7 @@ app.post('/api/fine-tuning/start', upload.array('files'), async (req, res) => {
     const newModelName = req.headers['x-new-model-name'];
     const corpusId = req.corpusId;
 
-    const backendResponse = await fetch(`${BACKEND_SERVICE_URL}/fine-tuning/start`, {
+    const backendResponse = await fetch(`${config.BACKEND_SERVICE_URL}/fine-tuning/start`, {
       method: 'POST',
       headers: {
         'X-Base-Model-ID': baseModelId,
@@ -690,7 +497,7 @@ app.post('/api/evaluation/precision', async (req, res) => {
       return res.status(400).json({ error: 'Missing required headers' });
     }
     
-    const response = await axios.post(`${BACKEND_SERVICE_URL}/evaluation/precision`, {}, {
+    const response = await axios.post(`${config.BACKEND_SERVICE_URL}/evaluation/precision`, {}, {
       headers: {
         'x-classification-job-id': jobId,
         'x-evaluation-type': evalType,
@@ -719,7 +526,7 @@ app.post('/api/evaluation/recall', async (req, res) => {
       return res.status(400).json({ error: 'Missing required headers' });
     }
     
-    const response = await axios.post(`${BACKEND_SERVICE_URL}/evaluation/recall`, {}, {
+    const response = await axios.post(`${config.BACKEND_SERVICE_URL}/evaluation/recall`, {}, {
       headers: {
         'x-classification-job-id': jobId,
         'x-evaluation-type': evalType,
@@ -743,11 +550,11 @@ app.post('/api/evaluation/recall', async (req, res) => {
 // Поиск
 app.post('/api/semantic/search', express.text(), async (req, res) => {
   try {
-    const response = await axios.post(`${BACKEND_SERVICE_URL}/semantic/search`, req.body, {
+    const response = await axios.post(`${config.BACKEND_SERVICE_URL}/semantic/search`, req.body, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'x-corpus-id': req.headers['x-corpus-id'],
-        'x-result-amount': req.headers['x-result-amount'] || 5,
+        'x-result-amount': req.headers['x-result-amount'] || config.defaults.resultAmount,
         'x-model-id': req.headers['x-model-id']
       }
     });
@@ -765,14 +572,15 @@ app.post('/api/semantic/search', express.text(), async (req, res) => {
 // Асинхрон
 app.get('/api/jobs/:jobId', async (req, res) => {
   try {
-    const response = await axios.get(`${BACKEND_SERVICE_URL}/jobs/${req.params.jobId}`);
+    const response = await axios.get(`${config.BACKEND_SERVICE_URL}/jobs/${req.params.jobId}`);
     
-    const jobIndex = jobsDB.jobs.findIndex(job => job.job_id === req.params.jobId);
-    if (jobIndex !== -1) {
-      jobsDB.jobs[jobIndex].status = response.data.status;
+    const job = jobManager.getJob(req.params.jobId);
+    if (job) {
+      job.status = response.data.status;
       if (response.data.result_url) {
-        jobsDB.jobs[jobIndex].result_url = response.data.result_url;
+        job.result_url = response.data.result_url;
       }
+      jobManager.updateJob(job);
     }
     
     res.json(response.data);
@@ -802,7 +610,7 @@ app.get('/api/result', async (req, res) => {
         try {
             // Первая попытка - прямой запрос
             response = await axios.get(resultUrl, { 
-                timeout: 10000,
+                timeout: config.timeouts.default,
                 validateStatus: () => true
             });
             console.log("Primary request status:", response.status);
@@ -818,7 +626,7 @@ app.get('/api/result', async (req, res) => {
                 console.log("Fallback URL:", fallbackUrl);
                 
                 response = await axios.get(fallbackUrl, {
-                    timeout: 10000,
+                    timeout: config.timeouts.default,
                     validateStatus: () => true
                 });
                 console.log("Fallback request status:", response.status);
@@ -881,20 +689,20 @@ async function buildFallbackUrl(originalUrl) {
         if (originalUrl.startsWith('http')) {
             try {
                 const urlObj = new URL(originalUrl);
-                const fallbackUrl = `http://back-service:3000${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
+                const fallbackUrl = `${config.BACKEND_SERVICE_URL.replace('/api', '')}${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
                 console.log("Built HTTP fallback URL:", fallbackUrl);
                 return fallbackUrl;
             } catch (e) {
                 console.error('URL parsing error:', e);
                 // Если URL невалидный, считаем что это endpoint
-                const fallbackUrl = `http://back-service:3000${originalUrl.startsWith('/') ? '' : '/'}${originalUrl}`;
+                const fallbackUrl = `${config.BACKEND_SERVICE_URL.replace('/api', '')}${originalUrl.startsWith('/') ? '' : '/'}${originalUrl}`;
                 console.log("Built fallback from invalid URL:", fallbackUrl);
                 return fallbackUrl;
             }
         }
         
         // Если это относительный путь
-        const fallbackUrl = `http://back-service:3000${originalUrl.startsWith('/') ? '' : '/'}${originalUrl}`;
+        const fallbackUrl = `${config.BACKEND_SERVICE_URL.replace('/api', '')}${originalUrl.startsWith('/') ? '' : '/'}${originalUrl}`;
         console.log("Built relative path fallback URL:", fallbackUrl);
         return fallbackUrl;
         
@@ -951,8 +759,8 @@ app.get('/api/debug/state', (req, res) => {
         }))
       },
       jobsDB: {
-        total_jobs: jobsDB.jobs.length,
-        recent_jobs: jobsDB.jobs.slice(-5).map(j => ({
+        total_jobs: jobManager.getAllJobs().length,
+        recent_jobs: jobManager.getAllJobs().slice(-5).map(j => ({
           job_id: j.job_id,
           type: j.type,
           corpus_name: j.corpus_name,
@@ -979,7 +787,7 @@ app.get('/api/clusterization/history', (req, res) => {
   try {
     const { limit } = req.query;
     
-    let clusterJobs = jobsDB.jobs.filter(job => job.type === 'clusterization');
+    let clusterJobs = jobManager.getAllJobs().filter(job => job.type === 'clusterization');
     clusterJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     
     if (limit) {
@@ -1002,7 +810,7 @@ app.get('/api/classification/history', (req, res) => {
   try {
     const { limit } = req.query;
     
-    let classificationJobs = jobsDB.jobs.filter(job => 
+    let classificationJobs = jobManager.getAllJobs().filter(job => 
       job.type === 'classification' || job.type === 'classification/grnti'
     );
     
@@ -1030,9 +838,9 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'OK',
     services: {
-      embedding: `${BACKEND_SERVICE_URL}/embedding`,
-      similarity: `${BACKEND_SERVICE_URL}/similarity`,
-      normalization: `${BACKEND_SERVICE_URL}/normalize`
+      embedding: `${config.BACKEND_SERVICE_URL}/embedding`,
+      similarity: `${config.BACKEND_SERVICE_URL}/similarity`,
+      normalization: `${config.BACKEND_SERVICE_URL}/normalize`
     },
     timestamp: new Date().toISOString()
   });
@@ -1062,10 +870,10 @@ app.get('/api/document', (req, res) => {
     if (corpusPath.startsWith('/')) {
       // Если corpus_path начинается с '/', убираем его для корректной конкатенации
       const relativePath = corpusPath.substring(1);
-      fullPath = path.join(SHARED_DATA_PATH, relativePath, document_id);
+      fullPath = path.join(config.SHARED_DATA_PATH, relativePath, document_id);
     } else {
       // Если corpus_path не начинается с '/', используем как есть
-      fullPath = path.join(SHARED_DATA_PATH, corpusPath, document_id);
+      fullPath = path.join(config.SHARED_DATA_PATH, corpusPath, document_id);
     }
     
     console.log('Constructed full filePath:', fullPath);
@@ -1086,7 +894,7 @@ app.get('/api/document', (req, res) => {
 
 app.get('/api/models', async (req, res) => {
   try {
-    const models = await axios.get(`${BACKEND_SERVICE_URL}/models`);
+    const models = await axios.get(`${config.BACKEND_SERVICE_URL}/models`);
     res.json(models.data);
   } catch (error) {
     handleProxyError(error, 'Models list', res);
@@ -1127,8 +935,8 @@ const startServer = async () => {
     // Инициализируем базу данных из файлов
     await corpusDB.initialize();
     
-    app.listen(PORT, () => {
-      console.log(`Сервер запущен на http://localhost:${PORT}`);
+    app.listen(config.PORT, () => {
+      console.log(`Сервер запущен на http://localhost:${config.PORT}`);
       console.log('Постоянное хранилище базы данных корпусов включено');
     });
   } catch (error) {
