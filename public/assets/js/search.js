@@ -103,7 +103,7 @@ async function loadCorpusDropdown() {
             const option = document.createElement('option');
             option.value = corpus.id;
             const displayName = corpus.name ? decodeURIComponent(corpus.name) : 'Без имени';
-            option.textContent = `${displayName} ID: ${corpus.id} (${getModelNameById(corpus.model) || 'неизвестна'}, файлов: ${corpus.files || '?'})`;
+            option.textContent = `${displayName} ID: ${corpus.id} (${getModelNameById(corpus.model) || 'неизвестна'}, файлов: ${corpus.files || '?'}), путь: ${corpus.corpus_path}`;
             corpusSelect.appendChild(option);
         });
 

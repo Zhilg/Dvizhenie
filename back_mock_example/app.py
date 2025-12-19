@@ -90,13 +90,26 @@ def upload_corpus():
         return jsonify(error="Model not found"), 404
     
     job_id = str(uuid.uuid4())
+    # Generate a corpus_id that is different from corpus_path
+    corpus_id = str(uuid.uuid4())
+    
+    # Create upload result with the generated corpus_id and original corpus_path
+    upload_result = {
+        "corpus_id": corpus_id,
+        "corpus_path": corpus_path,
+        "file_count": 30000,
+        "index_stats": {
+            "total_size_gb": 95.4
+        }
+    }
+    
     jobs_db[job_id] = {
         'status': 'processing',
         'type': 'upload',
         'progress': 0,
         'corpus_path': corpus_path,
         'model_id': model_id,
-        'result': MOCK_UPLOAD_RESULT
+        'result': upload_result
     }
     job_creation_time[job_id] = time.time()
     

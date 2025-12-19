@@ -13,4 +13,4 @@ shared_data/*
 *.tar
 test
 volumes
-docker-compose-roman.yml
+docker-compose*

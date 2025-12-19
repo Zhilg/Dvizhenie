@@ -9,6 +9,8 @@ let availableModels = [];
 // Текущее имя корпуса
 let currentCorpusName = null;
 
+let corpusPath = null;
+
 // Инициализация страницы загрузки при загрузке DOM
 document.addEventListener('DOMContentLoaded', async () => {
     await loadModels(); // Загрузка списка моделей
@@ -123,9 +125,11 @@ async function uploadDocuments() {
         if (!response.ok) throw new Error(await response.text());
 
         const data = await response.json();
+        console.log(`DATA ${data}`);
         currentJobId = data.job_id;
         currentJobId = currentJobId.replace("/", ""); // Очистка ID от слешей
         currentCorpusName = corpusNameValue; // Сохранение имени корпуса глобально
+        corpusPath = data.corpus_path; // Сохранение пути к корпусу глобально
 
         // Отображение информации о начатой загрузке
         const displayCorpusName = decodeURIComponent(corpusNameValue); // Ensure proper display
@@ -135,6 +139,9 @@ async function uploadDocuments() {
                 <p><strong>ID задачи:</strong> ${currentJobId}</p>
                 <p><strong>Примерное время:</strong> ${data.estimated_time_min || 'неизвестно'} минут</p>
                 <p><strong>Имя корпуса:</strong> ${displayCorpusName}</p>
+                <p><strong>Модель:</strong> ${modelSelect.options[modelSelect.selectedIndex].text}</p>
+                <p><strong>Файлов:</strong> ${folderInput.files.length}</p>
+                <p><strong>Имя папки корпуса в /shared_data:</strong> ${corpusPath}</p>
                 <p><strong>Статус:</strong> Обработка продолжается на сервере</p>
             </div>
         `;
@@ -236,9 +243,7 @@ async function processSuccessfulResponse(response, corpusName) {
     const modelId = document.getElementById('modelSelect').value;
     console.log(results);
 
-    // Сохранение информации о корпусе
-    await saveCorpusToProxy(results.corpus_id, modelId, results.file_count, corpusName);
-    saveCorpusToHistory(results.corpus_id, modelId, results.file_count, corpusName);
+    // Корпус автоматически сохранен сервером в БД
 
     // Отображение результатов загрузки
     const displayCorpusName = decodeURIComponent(corpusName); // Ensure proper display of Russian names
@@ -247,6 +252,7 @@ async function processSuccessfulResponse(response, corpusName) {
             <h4 class="alert-heading">✅ Загрузка завершена</h4>
             <p><strong>Имя корпуса:</strong> ${displayCorpusName}</p>
             <p><strong>ID корпуса:</strong> ${results.corpus_id}</p>
+            <p><strong>Имя папки корпуса в /shared_data:</strong> ${corpusPath}</p>
             <p><strong>Модель:</strong> ${getModelNameById(modelId)}</p>
             <p><strong>Файлов:</strong> ${results.file_count}</p>
             <p><strong>Статус:</strong> Корпус автоматически сохранен в истории</p>
@@ -257,29 +263,7 @@ async function processSuccessfulResponse(response, corpusName) {
     return results;
 }
 
-// Сохранение информации о корпусе в локальную историю (localStorage)
-function saveCorpusToHistory(corpusId, modelId, files, corpusNameValue) {
-    const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
 
-    const existingIndex = history.findIndex(item => item.id === corpusId);
-
-    const corpusInfo = {
-        id: corpusId,
-        name: corpusNameValue, // Store the decoded name
-        model: modelId,
-        files: files,
-        date: new Date().toISOString()
-    };
-
-    // Обновление существующей записи или добавление новой
-    if (existingIndex >= 0) {
-        history[existingIndex] = corpusInfo;
-    } else {
-        history.unshift(corpusInfo); // Добавление в начало списка
-    }
-
-    localStorage.setItem('corpusHistory', JSON.stringify(history));
-}
 
 // Отображение сообщения об ошибке пользователю
 function showError(message) {
@@ -303,34 +287,7 @@ function showError(message) {
     }, 5000);
 }
 
-// Сохранение информации о корпусе на сервер (прокси)
-async function saveCorpusToProxy(corpusId, modelId, files, corpusNameValue) {
-    try {
-        const corpusInfo = {
-            id: corpusId,
-            name: corpusNameValue,
-            model: modelId,
-            files: files,
-            date: new Date().toISOString()
-        };
 
-        const response = await fetch(`/corpus-history`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(corpusInfo)
-        });
-
-        if (!response.ok) {
-            throw new Error(`Ошибка сервера: ${response.status}`);
-        }
-
-        console.log('Корпус успешно сохранен в истории прокси');
-    } catch (error) {
-        console.error('Ошибка при сохранении в прокси:', error);
-    }
-}
 
 
 // Форматирование даты в человеко-читаемый вид

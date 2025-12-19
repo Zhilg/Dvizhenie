@@ -156,27 +156,40 @@ const processCompletedUploadJob = async (jobId, status) => {
     const results = response.data;
     console.log('Upload results received:', results);
 
-    // Save corpus to history automatically
-    const corpusInfo = {
-      id: results.corpus_id,
-      name: job.corpus_name || 'Unknown',
-      model: job.model_id,
-      files: results.file_count,
-      date: new Date().toISOString()
-    };
+    // Update jobsDB with correct corpus_path from backend results
+    const jobIndex = jobsDB.jobs.findIndex(j => j.job_id === jobId);
+    if (jobIndex !== -1 && results.corpus_path) {
+      jobsDB.jobs[jobIndex].corpus_path = results.corpus_path;
+      console.log(`Updated job ${jobId} with correct corpus_path: ${results.corpus_path}`);
+    }
 
-    console.log('=== DEBUG: Corpus Info for saving ===');
-    console.log('Corpus name being saved:', corpusInfo.name);
-    console.log('Corpus info:', JSON.stringify(corpusInfo, null, 2));
-    console.log('=== END DEBUG ===');
-
-    // Save to server-side corporaDB
-    saveCorporaToDB(corpusInfo);
+    // Find existing corpus by path and update it with corpus_id from backend
+    const existingCorpusIndex = corporaDB.corpora.findIndex(c => c.corpus_path === `/${job.corpus_path?.replace('/', '') || job.corpusId}`);
     
-    console.log(`Corpus ${results.corpus_id} automatically saved to server-side history`);
-    console.log(`Corpus name: "${corpusInfo.name}", Files: ${corpusInfo.files}, Model: ${corpusInfo.model}`);
+    if (existingCorpusIndex >= 0) {
+      // Update existing corpus with backend corpus_id and file count
+      corporaDB.corpora[existingCorpusIndex].id = results.corpus_id; // Update ID to backend corpus_id
+      corporaDB.corpora[existingCorpusIndex].files = results.file_count; // Update file count
+            
+      console.log(`Corpus ${job.corpusId} updated with backend ID: ${results.corpus_id}`);
+    } else {
+      // Fallback: create new entry if existing not found
+      const corpusInfo = {
+        id: results.corpus_id,
+        name: job.corpus_name || 'Неизвестно',
+        model: job.model_id,
+        files: results.file_count,
+        corpus_path: `/${job.corpusId}`,
+        date: new Date().toISOString()
+      };
+     saveCorporaToDB(corpusInfo);
+      console.log(`Corpus ${results.corpus_id} saved to server-side history (fallback)`);
+      console.log(`Corpus ${results.corpus_id} automatically saved to server-side history`);
+      console.log(`Corpus name: "${corpusInfo.name}", Files: ${corpusInfo.files}, Model: ${corpusInfo.model}`);
+      console.log(`Corpus ${results.corpus_id} automatically saved to history`);
+    }
     
-    console.log(`Corpus ${results.corpus_id} automatically saved to history`);
+    
     
   } catch (error) {
     console.error(`Error processing completed upload job ${jobId}:`, error);
@@ -184,7 +197,7 @@ const processCompletedUploadJob = async (jobId, status) => {
 };
 
 // Server-side polling function for upload jobs
-const pollUploadJob = async (jobId, corpusName, modelId) => {
+const pollUploadJob = async (jobId, corpusName, modelId, corpusId) => {
   try {
     console.log(`=== DEBUG: Starting server-side polling for upload job: ${jobId} ===`);
     console.log('Parameters received:');
@@ -226,7 +239,7 @@ const pollUploadJob = async (jobId, corpusName, modelId) => {
           
           // Automatically process the results and save to corpus history
           try {
-            await processCompletedUploadJob(jobId, status);
+            await processCompletedUploadJob(jobId, status, corpusId);
           } catch (error) {
             console.error(`Error processing completed upload job ${jobId}:`, error);
           }
@@ -396,7 +409,7 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
     const corpusId = req.corpusId;
     let corpusName = req.headers['x-corpus-name'];
     
-    // Decode URL-encoded corpus name to handle Russian characters properly
+    // Кодировка
     if (corpusName) {
       try {
         corpusName = decodeURIComponent(corpusName);
@@ -433,8 +446,8 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
       job_id: response.data.job_id,
       type: 'upload',
       model_id: modelId,
-      corpus_path: `/${corpusId}`,
-      corpus_name: corpusName, // Ensure proper corpus name is saved
+      corpus_path: `/${corpusId}`, // Путь к корпусу который мы отправляем, внутренняя БД, вернуться айдишник может другой
+      corpus_name: corpusName, 
       status: 'processing',
       created_at: new Date().toISOString(),
       estimated_time_min: response.data.estimated_time_min || null
@@ -447,12 +460,28 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
     
     saveJobToDB(jobData);
 
-    // Start server-side polling for this upload job
-    pollUploadJob(response.data.job_id, corpusName, modelId);
+    // Save corpus to DB immediately with correct path
+    const corpusInfo = {
+      id: corpusId, // Use the local corpus ID (folder name)
+      name: corpusName,
+      model: modelId,
+      files: null, // Will be updated later
+      corpus_path: `/${corpusId}`, // Path to the folder in shared_data
+      date: new Date().toISOString()
+    };
+    
 
+    
+    saveCorporaToDB(corpusInfo);
+
+    // Start server-side polling for this upload job
+    pollUploadJob(response.data.job_id, corpusName, modelId, corpusId);
+
+    // Return job info for immediate response
     res.status(202).json({
       ...response.data,
-      name: corpusName
+      name: corpusName,
+      corpus_path: `/${corpusId}`
     });
 
   } catch (error) {
@@ -472,8 +501,8 @@ app.post('/api/clusterization', async (req, res) => {
 
     const response = await axios.post(`${BACKEND_SERVICE_URL}/clusterization`, {}, {
       headers: {
-        'x-corpus-path': corpusId,
-        'x-corpus-id': corpusId, // для старых версий
+        'x-corpus-path': corpusId, // для старых версий
+        'x-corpus-id': corpusId, 
         'x-model-id': modelId,
         'x-ttl-hours': ttlHours
       }
@@ -860,6 +889,31 @@ app.get('/api/result', async (req, res) => {
     }
 });
 
+// Функция для получения corpus_path из базы данных корпусов
+const getCorpusPath = (corpusId) => {
+  try {
+    const corpus = corporaDB.corpora.find(c => c.id === corpusId);
+    if (!corpus) {
+      console.log(`Corpus ${corpusId} not found in database`);
+      return null;
+    }
+    
+    // Возвращаем corpus_path из базы данных
+    if (corpus.corpus_path) {
+      console.log(`Found corpus_path for ${corpusId}: ${corpus.corpus_path}`);
+      return corpus.corpus_path;
+    }
+    
+    // Fallback: используем кортеж corpus_id как путь
+    console.log(`No corpus_path found for ${corpusId}, using fallback: /${corpusId}`);
+    return `/${corpusId}`;
+    
+  } catch (error) {
+    console.error(`Error getting corpus_path for ${corpusId}:`, error);
+    return null;
+  }
+};
+
 // Функция построения фоллбэк URL
 async function buildFallbackUrl(originalUrl) {
     try {
@@ -938,6 +992,7 @@ app.get('/api/debug/state', (req, res) => {
           name: c.name,
           model: c.model,
           files: c.files,
+          corpus_path: c.corpus_path,
           created_at: c.created_at
         }))
       },
@@ -1039,15 +1094,34 @@ app.get('/api/document', (req, res) => {
       return res.status(400).json({ error: 'Missing corpus_id or document_id' });
     }
 
-    const filePath = path.join(__dirname, 'shared_data', corpus_id, document_id);
-    console.log('Constructed filePath:', filePath);
-    console.log('File exists:', fs.existsSync(filePath));
+    // Получаем corpus_path из базы данных корпусов
+    const corpusPath = getCorpusPath(corpus_id);
+    if (!corpusPath) {
+      return res.status(404).json({ error: 'Corpus not found in database' });
+    }
 
-    if (!fs.existsSync(filePath)) {
+    console.log(`Using corpus_path for ${corpus_id}: ${corpusPath}`);
+
+    // Строим полный путь: /shared_data + corpus_path + document_id
+    // corpus_path интерпретируется как относительный путь от точки монтирования /shared_data
+    let fullPath;
+    if (corpusPath.startsWith('/')) {
+      // Если corpus_path начинается с '/', убираем его для корректной конкатенации
+      const relativePath = corpusPath.substring(1);
+      fullPath = path.join(SHARED_DATA_PATH, relativePath, document_id);
+    } else {
+      // Если corpus_path не начинается с '/', используем как есть
+      fullPath = path.join(SHARED_DATA_PATH, corpusPath, document_id);
+    }
+    
+    console.log('Constructed full filePath:', fullPath);
+    console.log('File exists:', fs.existsSync(fullPath));
+
+    if (!fs.existsSync(fullPath)) {
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    const content = fs.readFileSync(filePath, 'utf8');
+    const content = fs.readFileSync(fullPath, 'utf8');
     res.set('Content-Type', 'text/plain; charset=utf-8');
     res.send(content);
   } catch (error) {

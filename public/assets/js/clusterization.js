@@ -96,6 +96,7 @@ async function loadCorpusHistory() {
                     displayParts.push(`${displayName}`);
                 }
                 displayParts.push(`ID: ${corpus.id}`);
+                displayParts.push(`Путь: ${corpus.corpus_path || 'Неизвестен'}`);
                 displayParts.push(`Модель: ${getModelNameById(corpus.model)}`);
                 displayParts.push(`Дата: ${formattedDate}`);
                 displayParts.push(`Файлов: ${corpus.files || 0}`);
@@ -492,11 +493,11 @@ function updateSimilarityChart(distribution) {
 
 function getColorByIndex(index) {
     const colors = [
-        '#3498db',
-        '#2980b9', 
-        '#f39c12',
+        '#c0392b',
         '#e74c3c', 
-        '#c0392b'
+        '#f39c12',
+        '#abf000', 
+        '#00cc00'
     ];
     return colors[index] || '#3498db';
 }

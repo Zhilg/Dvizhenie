@@ -948,7 +948,7 @@ MOCK_CLUSTER_RESULT = {
                 "fileCount": 12480,
                 "avgSimilarity": 0.87,
                 "similarityDistribution": [0, 0.1, 0.2, 0.3, 0.4],
-                "files": [{"name": "ai_research.txt"}],
+                "files": [{"name": "«Без военной истории — нет военной теории».txt"}],
                 "children": [
                     {
                         "id": "cluster1_1",
