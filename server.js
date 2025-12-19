@@ -7,11 +7,15 @@ const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const cosineSimilarity = require('cosine-similarity');
 const fs = require('fs');
+const CorpusDatabase = require('./database');
 
 const app = express();
 const PORT = 4000;
 const SHARED_DATA_PATH = "/app/shared_data";
 const BACKEND_SERVICE_URL = 'http://back-service:3000/api';
+
+// Инициализируем базу данных корпусов
+const corpusDB = new CorpusDatabase(SHARED_DATA_PATH);
 
 app.use(cors());
 app.use(morgan('dev'));
@@ -21,8 +25,7 @@ app.use(express.text({ type: 'text/plain', limit: 'Infinity' }));
 
 
 let jobsDB = { jobs: [] };
-let corporaDB = { corpora: []};
-let pollQueue = new Map(); // For tracking upload polling jobs
+let pollQueue = new Map(); // Для отслеживания задач загрузки
 
 const handleProxyError = (error, serviceName, res) => {
   console.error(`Proxy error for ${serviceName}:`, error);
@@ -46,134 +49,104 @@ const handleProxyError = (error, serviceName, res) => {
   }
 };
 
-const saveJobToDB = (jobData) => {
+const saveJobToDB = async (jobData) => {
   try {
     if (!jobData.created_at) {
       jobData.created_at = new Date().toISOString();
     }
     
     jobsDB.jobs.push(jobData);
-    console.log(`Job saved to DB: ${jobData.job_id} (type: ${jobData.type})`);
+    console.log(`Задача сохранена в БД: ${jobData.job_id} (тип: ${jobData.type})`);
+    
     return true;
   } catch (error) {
-    console.error('Error saving job to DB:', error);
+    console.error('Ошибка сохранения задачи в БД:', error);
     return false;
   }
 };
 
-const saveCorporaToDB = (corporaData) => {
-  try {
-    if (!corporaData.created_at) {
-      corporaData.created_at = new Date().toISOString();
-    }
-
-    console.log('=== DEBUG: Saving corpus to DB ===');
-    console.log('Corpus data received:', JSON.stringify(corporaData, null, 2));
-    console.log('Corpus name being saved:', corporaData.name);
-    console.log('=== END DEBUG ===');
-
-    // Проверяем, существует ли уже корпус с таким ID
-    const existingIndex = corporaDB.corpora.findIndex(c => c.id === corporaData.id);
-    if (existingIndex >= 0) {
-      // Обновляем существующий
-      corporaDB.corpora[existingIndex] = corporaData;
-      console.log(`Корпус обновлен в БД: ${corporaData.id}`);
-    } else {
-      // Добавляем новый
-      corporaDB.corpora.push(corporaData);
-      console.log(`Корпус сохранен в БД: ${corporaData.id}`);
-    }
-    return true;
-  } catch (error) {
-    console.error('Ошибка добавления корпуса в БД:', error);
-    return false;
-  }
-};
-
-// Process completed upload job and save to corpus history
+// Обработка завершенной задачи загрузки и сохранение в историю корпусов
 const processCompletedUploadJob = async (jobId, status) => {
   try {
-    console.log(`=== DEBUG: Processing completed upload job ${jobId} ===`);
+    console.log(`=== DEBUG: Обработка завершенной задачи загрузки ${jobId} ===`);
     
-    // Get the job data from jobsDB to find corpus info
+    // Получаем данные задачи из jobsDB для поиска информации о корпусе
     const job = jobsDB.jobs.find(j => j.job_id === jobId);
-    console.log('=== DEBUG: Job data found ===');
-    console.log('Job found:', !!job);
+    console.log('=== DEBUG: Найдены данные задачи ===');
+    console.log('Задача найдена:', !!job);
     if (job) {
-      console.log('Job data:', JSON.stringify(job, null, 2));
-      console.log('Job corpus_name:', job.corpus_name);
-      console.log('Job corpus_name type:', typeof job.corpus_name);
-      console.log('Job corpus_name length:', job.corpus_name ? job.corpus_name.length : 'N/A');
+      console.log('Данные задачи:', JSON.stringify(job, null, 2));
+      console.log('Имя корпуса в задаче:', job.corpus_name);
+      console.log('Тип имени корпуса:', typeof job.corpus_name);
+      console.log('Длина имени корпуса:', job.corpus_name ? job.corpus_name.length : 'Н/Д');
     } else {
-      console.log('No job found in jobsDB');
-      console.log('Total jobs in DB:', jobsDB.jobs.length);
-      console.log('Available job IDs:', jobsDB.jobs.map(j => j.job_id));
+      console.log('Задача не найдена в jobsDB');
+      console.log('Всего задач в БД:', jobsDB.jobs.length);
+      console.log('Доступные ID задач:', jobsDB.jobs.map(j => j.job_id));
     }
-    console.log('=== END DEBUG ===');
+    console.log('=== КОНЕЦ DEBUG ===');
     
     if (!job) {
-      console.error(`Job ${jobId} not found in jobsDB`);
+      console.error(`Задача ${jobId} не найдена в jobsDB`);
       return;
     }
 
-    // Use the same URL building logic as the existing /api/result endpoint
+    // Используем ту же логику построения URL, что и в существующем /api/result
     const resultUrl = status.result_url;
     let response;
     
     try {
-      // First try - direct request
+      // Первая попытка - прямой запрос
       response = await axios.get(resultUrl, { 
         timeout: 10000,
         validateStatus: () => true
       });
-      console.log("Primary request status:", response.status);
+      console.log("Статус основного запроса:", response.status);
     } catch (primaryError) {
-      console.log("Primary request failed with error:", primaryError.message);
-      // Use the same fallback logic as /api/result
+      console.log("Основной запрос завершился с ошибкой:", primaryError.message);
+      // Используем ту же логику фоллбэка, что и /api/result
       if (primaryError.code === 'ENOTFOUND' || primaryError.code === 'ECONNREFUSED' || 
           primaryError.code === 'ECONNABORTED' || primaryError.code === 'ETIMEDOUT' || 
           primaryError.code === 'ERR_INVALID_URL' || primaryError.code === 'EAI_AGAIN') {
           
-        console.log("Network error detected, trying fallback...");
+        console.log("Обнаружена сетевая ошибка, пробуем фоллбэк...");
         const fallbackUrl = await buildFallbackUrl(resultUrl);
-        console.log("Fallback URL:", fallbackUrl);
+        console.log("URL фоллбэка:", fallbackUrl);
         
         response = await axios.get(fallbackUrl, {
           timeout: 10000,
           validateStatus: () => true
         });
-        console.log("Fallback request status:", response.status);
+        console.log("Статус запроса фоллбэка:", response.status);
       } else {
         throw primaryError;
       }
     }
 
-    // If we got HTTP error, throw it
+    // Если получили HTTP ошибку, генерируем исключение
     if (response.status >= 400) {
-      throw new Error(`Failed to get results: ${response.statusText}`);
+      throw new Error(`Не удалось получить результаты: ${response.statusText}`);
     }
 
     const results = response.data;
-    console.log('Upload results received:', results);
+    console.log('Получены результаты загрузки:', results);
 
-    // Update jobsDB with correct corpus_path from backend results
+    // Обновляем jobsDB с правильным corpus_path из результатов бэкенда
     const jobIndex = jobsDB.jobs.findIndex(j => j.job_id === jobId);
     if (jobIndex !== -1 && results.corpus_path) {
       jobsDB.jobs[jobIndex].corpus_path = results.corpus_path;
-      console.log(`Updated job ${jobId} with correct corpus_path: ${results.corpus_path}`);
+      console.log(`Обновлена задача ${jobId} с правильным corpus_path: ${results.corpus_path}`);
     }
 
-    // Find existing corpus by path and update it with corpus_id from backend
-    const existingCorpusIndex = corporaDB.corpora.findIndex(c => c.corpus_path === `/${job.corpus_path?.replace('/', '') || job.corpusId}`);
+    // Обновляем количество файлов в корпусе
+    const updated = await corpusDB.updateCorpusFileCount(
+      `/${job.corpus_path?.replace('/', '') || job.corpusId}`,
+      results.corpus_id,
+      results.file_count
+    );
     
-    if (existingCorpusIndex >= 0) {
-      // Update existing corpus with backend corpus_id and file count
-      corporaDB.corpora[existingCorpusIndex].id = results.corpus_id; // Update ID to backend corpus_id
-      corporaDB.corpora[existingCorpusIndex].files = results.file_count; // Update file count
-            
-      console.log(`Corpus ${job.corpusId} updated with backend ID: ${results.corpus_id}`);
-    } else {
-      // Fallback: create new entry if existing not found
+    if (!updated) {
+      // Fallback: создаем новую запись, если существующая не найдена
       const corpusInfo = {
         id: results.corpus_id,
         name: job.corpus_name || 'Неизвестно',
@@ -182,37 +155,35 @@ const processCompletedUploadJob = async (jobId, status) => {
         corpus_path: `/${job.corpusId}`,
         date: new Date().toISOString()
       };
-     saveCorporaToDB(corpusInfo);
-      console.log(`Corpus ${results.corpus_id} saved to server-side history (fallback)`);
-      console.log(`Corpus ${results.corpus_id} automatically saved to server-side history`);
-      console.log(`Corpus name: "${corpusInfo.name}", Files: ${corpusInfo.files}, Model: ${corpusInfo.model}`);
-      console.log(`Corpus ${results.corpus_id} automatically saved to history`);
+      await corpusDB.saveCorpus(corpusInfo);
+      console.log(`Корпус ${results.corpus_id} сохранен в историю на стороне сервера (fallback)`);
+      console.log(`Корпус ${results.corpus_id} автоматически сохранен в историю на стороне сервера`);
+      console.log(`Имя корпуса: "${corpusInfo.name}", Файлов: ${corpusInfo.files}, Модель: ${corpusInfo.model}`);
+      console.log(`Корпус ${results.corpus_id} автоматически сохранен в историю`);
     }
     
-    
-    
   } catch (error) {
-    console.error(`Error processing completed upload job ${jobId}:`, error);
+    console.error(`Ошибка обработки завершенной задачи загрузки ${jobId}:`, error);
   }
 };
 
-// Server-side polling function for upload jobs
+// Серверная функция опроса для задач загрузки
 const pollUploadJob = async (jobId, corpusName, modelId, corpusId) => {
   try {
-    console.log(`=== DEBUG: Starting server-side polling for upload job: ${jobId} ===`);
-    console.log('Parameters received:');
+    console.log(`=== DEBUG: Запуск серверного опроса для задачи загрузки: ${jobId} ===`);
+    console.log('Полученные параметры:');
     console.log('  jobId:', jobId);
     console.log('  corpusName:', corpusName);
     console.log('  modelId:', modelId);
-    console.log('=== END DEBUG ===');
+    console.log('=== КОНЕЦ DEBUG ===');
     
     const pollJob = async () => {
       try {
-        // Check job status from backend
+        // Проверяем статус задачи от бэкенда
         const response = await axios.get(`${BACKEND_SERVICE_URL}/jobs/${jobId}`);
         const status = response.data;
 
-        // Update jobsDB
+        // Обновляем jobsDB
         const jobIndex = jobsDB.jobs.findIndex(job => job.job_id === jobId);
         if (jobIndex !== -1) {
           jobsDB.jobs[jobIndex].status = status.status;
@@ -223,47 +194,47 @@ const pollUploadJob = async (jobId, corpusName, modelId, corpusId) => {
           jobsDB.jobs[jobIndex].updated_at = new Date().toISOString();
         }
 
-        console.log(`=== DEBUG: Job ${jobId} status: ${status.status} ===`);
+        console.log(`=== DEBUG: Статус задачи ${jobId}: ${status.status} ===`);
 
         if (status.status === 'processing') {
-          // Continue polling every 5 seconds
+          // Продолжаем опрос каждые 5 секунд
           setTimeout(pollJob, 5000);
         } else if (status.status === 'completed') {
-          // Job completed, automatically process results
+          // Задача завершена, автоматически обрабатываем результаты
           pollQueue.set(jobId, {
             status: 'completed',
             result: status,
             completed_at: new Date().toISOString()
           });
-          console.log(`Upload job ${jobId} completed, processing results automatically`);
+          console.log(`Задача загрузки ${jobId} завершена, автоматически обрабатываем результаты`);
           
-          // Automatically process the results and save to corpus history
+          // Автоматически обрабатываем результаты и сохраняем в историю корпусов
           try {
             await processCompletedUploadJob(jobId, status, corpusId);
           } catch (error) {
-            console.error(`Error processing completed upload job ${jobId}:`, error);
+            console.error(`Ошибка обработки завершенной задачи загрузки ${jobId}:`, error);
           }
         } else {
-          // Job failed or unknown status
+          // Задача провалена или неизвестный статус
           pollQueue.set(jobId, {
             status: 'failed',
             result: status,
             failed_at: new Date().toISOString()
           });
-          console.log(`Upload job ${jobId} failed: ${status.status}`);
+          console.log(`Задача загрузки ${jobId} провалена: ${status.status}`);
         }
       } catch (error) {
-        console.error(`Error polling upload job ${jobId}:`, error);
-        // Continue polling on error
+        console.error(`Ошибка опроса задачи загрузки ${jobId}:`, error);
+        // Продолжаем опрос при ошибке
         setTimeout(pollJob, 10000);
       }
     };
 
-    // Start polling
+    // Начинаем опрос
     setTimeout(pollJob, 5000);
     
   } catch (error) {
-    console.error(`Failed to start polling for upload job ${jobId}:`, error);
+    console.error(`Не удалось запустить опрос для задачи загрузки ${jobId}:`, error);
   }
 };
 
@@ -441,7 +412,7 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
       }
     });
 
-    // Save job information to jobsDB
+    // Сохраняем информацию о задаче в jobsDB
     const jobData = {
       job_id: response.data.job_id,
       type: 'upload',
@@ -453,26 +424,24 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
       estimated_time_min: response.data.estimated_time_min || null
     };
     
-    console.log('=== DEBUG: Job data being saved ===');
-    console.log('Job data:', JSON.stringify(jobData, null, 2));
-    console.log('Corpus name in job:', jobData.corpus_name);
-    console.log('=== END DEBUG ===');
+    console.log('=== DEBUG: Данные задачи для сохранения ===');
+    console.log('Данные задачи:', JSON.stringify(jobData, null, 2));
+    console.log('Имя корпуса в задаче:', jobData.corpus_name);
+    console.log('=== КОНЕЦ DEBUG ===');
     
-    saveJobToDB(jobData);
+    await saveJobToDB(jobData);
 
-    // Save corpus to DB immediately with correct path
+    // Сохраняем корпус в БД немедленно с правильным путем
     const corpusInfo = {
-      id: corpusId, // Use the local corpus ID (folder name)
+      id: corpusId, // Используем локальный ID корпуса (имя папки)
       name: corpusName,
       model: modelId,
-      files: null, // Will be updated later
-      corpus_path: `/${corpusId}`, // Path to the folder in shared_data
+      files: null, // Будет обновлено позже
+      corpus_path: `/${corpusId}`, // Путь к папке в shared_data
       date: new Date().toISOString()
     };
     
-
-    
-    saveCorporaToDB(corpusInfo);
+    await corpusDB.saveCorpus(corpusInfo);
 
     // Start server-side polling for this upload job
     pollUploadJob(response.data.job_id, corpusName, modelId, corpusId);
@@ -518,7 +487,7 @@ app.post('/api/clusterization', async (req, res) => {
       estimated_time_min: response.data.estimated_time_min || null
     };
     
-    saveJobToDB(jobData);
+    await saveJobToDB(jobData);
 
     res.status(202).json({
       ...response.data,
@@ -544,9 +513,9 @@ app.post('/api/clusterization', async (req, res) => {
 
 app.get('/corpus-history', async (req, res) => {
     try {
-        res.json(corporaDB.corpora);
+        res.json(corpusDB.getAllCorpora());
     } catch (error) {
-        console.error('Error reading corpus history:', error);
+        console.error('Ошибка чтения истории корпусов:', error);
         res.status(500).json({ error: 'Ошибка чтения истории' });
     }
 });
@@ -557,7 +526,7 @@ app.post('/corpus-history', async (req, res) => {
         const newCorpus = req.body;
         
         try {
-            saveCorporaToDB(newCorpus);
+            await corpusDB.saveCorpus(newCorpus);
         } catch (error) {
             if (error.code !== 'ENOENT') throw error;
         }
@@ -603,7 +572,7 @@ app.post('/api/classification', upload.array('files'), async (req, res) => {
       estimated_time_min: response.data.estimated_time_min || null
     };
     
-    saveJobToDB(jobData);
+    await saveJobToDB(jobData);
 
     res.status(202).json(response.data);
 
@@ -660,7 +629,7 @@ app.post('/api/classification/grnti', upload.array('files'), async (req, res) =>
       estimated_time_min: response.data.estimated_time_min || null
     };
     
-    saveJobToDB(jobData);
+    await saveJobToDB(jobData);
 
     res.status(202).json(response.data);
 
@@ -892,24 +861,9 @@ app.get('/api/result', async (req, res) => {
 // Функция для получения corpus_path из базы данных корпусов
 const getCorpusPath = (corpusId) => {
   try {
-    const corpus = corporaDB.corpora.find(c => c.id === corpusId);
-    if (!corpus) {
-      console.log(`Corpus ${corpusId} not found in database`);
-      return null;
-    }
-    
-    // Возвращаем corpus_path из базы данных
-    if (corpus.corpus_path) {
-      console.log(`Found corpus_path for ${corpusId}: ${corpus.corpus_path}`);
-      return corpus.corpus_path;
-    }
-    
-    // Fallback: используем кортеж corpus_id как путь
-    console.log(`No corpus_path found for ${corpusId}, using fallback: /${corpusId}`);
-    return `/${corpusId}`;
-    
+    return corpusDB.getCorpusPath(corpusId);
   } catch (error) {
-    console.error(`Error getting corpus_path for ${corpusId}:`, error);
+    console.error(`Ошибка получения corpus_path для ${corpusId}:`, error);
     return null;
   }
 };
@@ -980,14 +934,14 @@ app.post('/api/test/russian-name', (req, res) => {
   }
 });
 
-// Debug endpoint to inspect current state
+// Отладочный эндпоинт для проверки текущего состояния
 app.get('/api/debug/state', (req, res) => {
   try {
     const debugInfo = {
       timestamp: new Date().toISOString(),
       corporaDB: {
-        total_corpora: corporaDB.corpora.length,
-        corpora: corporaDB.corpora.map(c => ({
+        total_corpora: corpusDB.getAllCorpora().length,
+        corpora: corpusDB.getAllCorpora().map(c => ({
           id: c.id,
           name: c.name,
           model: c.model,
@@ -1009,14 +963,14 @@ app.get('/api/debug/state', (req, res) => {
       }
     };
     
-    console.log('=== DEBUG: Current system state ===');
+    console.log('=== DEBUG: Текущее состояние системы ===');
     console.log(JSON.stringify(debugInfo, null, 2));
-    console.log('=== END DEBUG ===');
+    console.log('=== КОНЕЦ DEBUG ===');
     
     res.json(debugInfo);
   } catch (error) {
-    console.error('Error in debug endpoint:', error);
-    res.status(500).json({ error: 'Debug endpoint error', message: error.message });
+    console.error('Ошибка в отладочном эндпоинте:', error);
+    res.status(500).json({ error: 'Ошибка отладочного эндпоинта', message: error.message });
   }
 });
 
@@ -1167,6 +1121,20 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+// Инициализация баз данных и запуск сервера
+const startServer = async () => {
+  try {
+    // Инициализируем базу данных из файлов
+    await corpusDB.initialize();
+    
+    app.listen(PORT, () => {
+      console.log(`Сервер запущен на http://localhost:${PORT}`);
+      console.log('Постоянное хранилище базы данных корпусов включено');
+    });
+  } catch (error) {
+    console.error('Не удалось запустить сервер:', error);
+    process.exit(1);
+  }
+};
+
+startServer();
