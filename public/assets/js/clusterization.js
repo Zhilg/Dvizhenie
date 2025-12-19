@@ -492,11 +492,11 @@ function updateSimilarityChart(distribution) {
 
 function getColorByIndex(index) {
     const colors = [
-        '#c0392b',
-        '#e74c3c', 
+        '#3498db',
+        '#2980b9', 
         '#f39c12',
-        '#abf000', 
-        '#00cc00'
+        '#e74c3c', 
+        '#c0392b'
     ];
     return colors[index] || '#3498db';
 }
