@@ -187,21 +187,17 @@ class CorpusDatabase {
   getCorpusPath(corpusId) {
     try {
       const corpus = this.getCorpusById(corpusId);
-      if (!corpus) {
-        console.log(`Корпус ${corpusId} не найден в базе данных`);
-        return null;
-      }
-      
-      // Возвращаем corpus_path из базы данных
-      if (corpus.corpus_path) {
+
+      // Если корпус найден и имеет corpus_path
+      if (corpus && corpus.corpus_path) {
         console.log(`Найден corpus_path для ${corpusId}: ${corpus.corpus_path}`);
         return corpus.corpus_path;
       }
-      
-      // Fallback: используем corpus_id как путь
-      console.log(`Для ${corpusId} не найден corpus_path, используется fallback: /${corpusId}`);
+
+      // Fallback: используем corpus_id как путь (корпус может быть не в БД при классификации)
+      console.log(`Корпус ${corpusId} не найден в базе данных, используется fallback: /${corpusId}`);
       return `/${corpusId}`;
-      
+
     } catch (error) {
       console.error(`Ошибка получения corpus_path для ${corpusId}:`, error);
       return null;

@@ -2,8 +2,9 @@
     --primary: #4361ee;
     --primary-light: #e6f0ff;
     --secondary: #3f37c9;
-    --success: #4cc9f0;
-    --danger: #f72585;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
     --light: #f8f9fa;
     --dark: #212529;
 }
@@ -86,37 +87,11 @@ textarea.form-control:focus {
     display: none;
 }
 
-.vector-value {
-    font-family: 'Fira Code', monospace;
-    background: var(--light);
-    padding: 0.5rem;
-    border-radius: 4px;
-    overflow-x: auto;
-}
-
 .similarity-badge {
     font-size: 1.2rem;
     padding: 0.5rem 1rem;
     border-radius: 50px;
     background: linear-gradient(135deg, var(--primary), var(--success));
-    color: white;
-    display: inline-block;
-    margin-top: 1rem;
-}
-
-@media (max-width: 768px) {
-    .grid-container {
-        padding: 1rem;
-    }
-    
-    textarea.form-control {
-        min-height: 200px;
-    }
-}
-.similarity-badge {
-    font-size: 1.2rem;
-    padding: 0.5rem 1rem;
-    border-radius: 50px;
     color: white;
     display: inline-block;
     margin-top: 1rem;
@@ -129,7 +104,13 @@ textarea.form-control:focus {
 .vector-value {
     max-height: 150px;
     overflow-y: auto;
+    font-family: 'Fira Code', monospace;
+    background: var(--light);
+    padding: 0.5rem;
+    border-radius: 4px;
+    overflow-x: auto;
 }
+
 .angle-badge {
     font-size: 1.2rem;
     padding: 0.5rem 1rem;
@@ -140,28 +121,18 @@ textarea.form-control:focus {
     margin-top: 0.5rem;
 }
 
-.vector-pair {
-    display: inline-block;
-    margin: 0.2rem;
-    padding: 0.3rem 0.6rem;
-    background: #f8f9fa;
-    border-radius: 4px;
-    font-family: 'Fira Code', monospace;
-    font-size: 0.9rem;
-}
-
 #model-info {
-  padding: 10px;
-  background: #f8f9fa;
-  border-radius: 5px;
-  border: 1px solid #eee;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 5px;
+    border: 1px solid #eee;
 }
 
 .model-dimension-badge {
-  font-size: 0.8em;
-  background: #e9ecef;
-  padding: 2px 5px;
-  border-radius: 3px;
+    font-size: 0.8em;
+    background: #e9ecef;
+    padding: 2px 5px;
+    border-radius: 3px;
 }
 
 .home-btn {
@@ -177,5 +148,225 @@ textarea.form-control:focus {
 
 .home-btn:hover {
     background-color: #4dabf7;
-    color:white;
+    color: white;
+}
+
+/* ========================================
+   ????????? ???????? ???????????
+   ======================================== */
+
+.gauge-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1.5rem 0 2rem;
+}
+
+.gauge-container {
+    background: linear-gradient(145deg, #ffffff 0%, #f8f9fc 100%);
+    border-radius: 20px;
+    padding: 1.5rem 2rem;
+    box-shadow: 
+        0 10px 40px rgba(0, 0, 0, 0.08),
+        0 0 0 1px rgba(0, 0, 0, 0.04),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    text-align: center;
+    max-width: 340px;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.gauge-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--success), var(--warning), var(--danger));
+    border-radius: 20px 20px 0 0;
+}
+
+.gauge-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--dark);
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    opacity: 0.7;
+}
+
+.gauge-wrapper {
+    position: relative;
+    width: 280px;
+    height: 160px;
+    margin: 0 auto;
+}
+
+.gauge-svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+/* ??????? ???? */
+.gauge-bg {
+    fill: none;
+    stroke: #e8eaed;
+    stroke-width: 20;
+    stroke-linecap: round;
+}
+
+/* ??????????? ???? */
+.gauge-fill {
+    fill: none;
+    stroke-width: 20;
+    stroke-linecap: round;
+}
+
+/* ??????? */
+.gauge-needle {
+    transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform-origin: 140px 130px;
+    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.2));
+}
+
+.gauge-needle-shape {
+    fill: var(--dark);
+}
+
+.gauge-needle-center {
+    fill: var(--dark);
+    stroke: #fff;
+    stroke-width: 3;
+}
+
+/* ????? ?? ????? */
+.gauge-label {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    fill: var(--dark);
+    opacity: 0.5;
+}
+
+/* ???? ? ????????? */
+.gauge-value-container {
+    position: absolute;
+    bottom: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+}
+
+.gauge-value {
+    font-family: 'Fira Code', 'Consolas', monospace;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--dark);
+    line-height: 1;
+    transition: color 0.4s ease;
+}
+
+.gauge-unit {
+    font-size: 0.75rem;
+    color: var(--dark);
+    opacity: 0.5;
+    margin-top: 0.1rem;
+    font-weight: 500;
+}
+
+/* ???? ?? ????? */
+.zone-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    padding: 0 0.5rem;
+}
+
+.zone-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.zone-label.success { color: var(--success); }
+.zone-label.warning { color: var(--warning); }
+.zone-label.danger { color: var(--danger); }
+
+/* ?????? */
+.gauge-status {
+    margin-top: 1rem;
+    padding: 0.5rem 1rem;
+    border-radius: 50px;
+    font-weight: 600;
+    font-size: 0.8rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.4s ease;
+}
+
+.gauge-status.low {
+    background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+    color: #065f46;
+}
+
+.gauge-status.medium {
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    color: #92400e;
+}
+
+.gauge-status.high {
+    background: linear-gradient(135deg, #fee2e2, #fecaca);
+    color: #991b1b;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: pulse 2s infinite ease-in-out;
+}
+
+.low .status-dot { background: var(--success); }
+.medium .status-dot { background: var(--warning); }
+.high .status-dot { background: var(--danger); }
+
+@keyframes pulse {
+    0%, 100% { 
+        opacity: 1; 
+        transform: scale(1); 
+    }
+    50% { 
+        opacity: 0.6; 
+        transform: scale(1.3); 
+    }
+}
+
+/* ???????????? */
+@media (max-width: 768px) {
+    .grid-container {
+        padding: 1rem;
+    }
+    
+    textarea.form-control {
+        min-height: 200px;
+    }
+    
+    .gauge-container {
+        padding: 1.25rem 1.5rem;
+    }
+    
+    .gauge-wrapper {
+        width: 240px;
+        height: 140px;
+    }
+    
+    .gauge-value {
+        font-size: 1.5rem;
+    }
 }

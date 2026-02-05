@@ -6,26 +6,42 @@
 const config = {
   // Порт сервера
   PORT: process.env.PORT || 4000,
-  
+
   // Путь к общему хранилищу данных
   SHARED_DATA_PATH: process.env.SHARED_DATA_PATH || "/app/shared_data",
-  
-  // URL бэкенд-сервиса
-  BACKEND_SERVICE_URL: process.env.BACKEND_SERVICE_URL || 'http://back-service:3000/api',
-  
+
+  // URLs всех трех бекэндов
+  BACKENDS: {
+    cnii: process.env.BACKEND_CNII_URL || 'http://back-service-cnii:5038/api',
+    peredovie: process.env.BACKEND_PEREDOVIE_URL || 'http://back-service-peredovie:3001/api',
+    kazan: process.env.BACKEND_KAZAN_URL || 'http://back-service-kazan:3002/api'
+  },
+
+  // Бэкенд по умолчанию (можно менять через API или переменную окружения)
+  DEFAULT_BACKEND: process.env.DEFAULT_BACKEND || 'cnii',
+
+  // URL бэкенд-сервиса (для обратной совместимости)
+  get BACKEND_SERVICE_URL() {
+    const backend = this.currentBackend || this.DEFAULT_BACKEND;
+    return this.BACKENDS[backend] || this.BACKENDS[this.DEFAULT_BACKEND];
+  },
+
+  // Текущий выбранный бекэнд (устанавливается динамически)
+  currentBackend: null,
+
   // Настройки Express
   express: {
     jsonLimit: 'Infinity',
     textLimit: 'Infinity'
   },
-  
+
   // Настройки по умолчанию
   defaults: {
     modelId: 'default-model',
     ttlHours: 0,
     resultAmount: 5
   },
-  
+
   // Таймауты для HTTP-запросов (мс)
   timeouts: {
     default: 10000

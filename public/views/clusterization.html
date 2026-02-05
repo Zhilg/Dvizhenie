@@ -51,7 +51,40 @@
             </div>
             
             <div class="control-group">
-                <label>Кластеры:</label>
+                <label for="clusterLimit">Количество отображаемых кластеров:</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <select id="clusterLimit" class="form-control" style="flex: 1;">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="15">15</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="custom">Другое</option>
+                    </select>
+                    <input type="number" id="clusterLimitCustom" class="form-control"
+                           style="flex: 1; display: none;"
+                           placeholder="Введите число"
+                           min="1"
+                           max="1000">
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label for="fileSearch">Поиск файла в кластерах:</label>
+                <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                    <input type="text" id="fileSearch" class="form-control"
+                           placeholder="Введите имя файла для фильтрации..."
+                           style="flex: 1;">
+                    <button id="clearSearchBtn" class="btn btn-secondary" style="min-width: 80px; display: none;">✕ Сбросить</button>
+                </div>
+                <div id="searchInfo" style="display: none; padding: 8px; background: #e7f3ff; border-radius: 4px; margin-bottom: 8px; font-size: 13px; color: #0066cc;">
+                    <!-- Информация о результатах поиска -->
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label id="clustersLabel">Кластеры:</label>
                 <div class="cluster-tree-wrapper">
                     <div class="tree-controls">
                         <button class="tree-btn" onclick="expandAll()">📂 Развернуть все</button>
@@ -111,7 +144,6 @@
                         <thead class="files-table-header">
                             <tr>
                                 <th data-sort="filename">Имя файла</th>
-                                <th data-sort="similarity">Схожесть</th>
                                 <th data-sort="size">Размер</th>
                                 <th>Действия</th>
                             </tr>
@@ -144,6 +176,7 @@
         </main>
     </div>
 
+    <script src="../assets/js/backend-selector.js"></script>
     <script type="text/javascript" src="../assets/js/clusterization.js"></script>
 </body>
 </html>

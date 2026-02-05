@@ -15,13 +15,34 @@ const app = express();
 
 // Инициализируем модули
 const corpusDB = new CorpusDatabase(config.SHARED_DATA_PATH);
-const jobManager = new JobManager(config.BACKEND_SERVICE_URL, corpusDB);
+// JobManager теперь будет получать URL динамически
+const jobManager = new JobManager(null, corpusDB, config.SHARED_DATA_PATH);
 
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json({ limit: config.express.jsonLimit }));
 app.use(express.text({ type: 'text/plain', limit: config.express.textLimit }));
+
+// Middleware для установки текущего бекэнда из заголовка
+app.use((req, res, next) => {
+  const backendHeader = req.headers['x-backend-company'];
+  if (backendHeader && config.BACKENDS[backendHeader]) {
+    req.currentBackend = backendHeader;
+  } else {
+    req.currentBackend = config.DEFAULT_BACKEND;
+  }
+  console.log(`[DEBUG] Backend selected: ${req.currentBackend} (from header: ${backendHeader || 'none'})`);
+  next();
+});
+
+// Функция для получения URL бекэнда
+const getBackendURL = (req) => {
+  const backend = req.currentBackend || config.DEFAULT_BACKEND;
+  const backendHeader = req.headers['x-backend-company'];
+  console.log(`[DEBUG] Backend selected: ${req.currentBackend} (from header: ${backendHeader || 'none'})`);
+  return config.BACKENDS[backend];
+};
 
 const handleProxyError = (error, serviceName, res) => {
   console.error(`Proxy error for ${serviceName}:`, error);
@@ -45,8 +66,8 @@ const handleProxyError = (error, serviceName, res) => {
   }
 };
 
-const getEmbedding = async (text, modelId) => {
-  const response = await axios.post(`${config.BACKEND_SERVICE_URL}/embedding`, text, {
+const getEmbedding = async (text, modelId, backendUrl) => {
+  const response = await axios.post(`${backendUrl}/embedding`, text, {
     headers: {
       'Content-Type': 'text/plain',
       'x-model-id': modelId
@@ -86,6 +107,10 @@ app.get('/semantic/search/unstructured', (req, res) => {
 });
 
 app.get('/classification', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'views', 'classification_select.html'));
+});
+
+app.get('/classification/cluster', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'views', 'classification.html'));
 });
 
@@ -93,9 +118,14 @@ app.get('/classification/grnti', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'views', 'classification_grnti.html'));
 });
 
+app.get('/evaluation', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'views', 'evaluation.html'));
+});
+
 app.get('/evaluation/precision', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'views', 'evaluation_precision.html'));
 });
+
 
 app.get('/evaluation/recall', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'views', 'evaluation_recall.html'));
@@ -110,14 +140,15 @@ app.get('/fine-tuning', (req, res) => {
 // Обработка текста
 app.post('/api/normalize', async (req, res) => {
   try {
-    const response = await axios.post(`${config.BACKEND_SERVICE_URL}/normalize`, req.body, {
+    const backendUrl = getBackendURL(req);
+    const response = await axios.post(`${backendUrl}/normalize`, req.body, {
       headers: {
         'Content-Type': 'text/plain',
         'Accept': 'text/plain'
       },
       responseType: 'text'
     });
-    
+
     res
       .set('Content-Type', 'text/plain')
       .set('Language', response.headers['language'])
@@ -130,14 +161,15 @@ app.post('/api/normalize', async (req, res) => {
 app.post('/api/similarity', express.json(), async (req, res) => {
   try {
     const { text1, text2, modelId = config.defaults.modelId } = req.body;
-    
+
     if (!text1 || !text2) {
       return res.status(400).json({ error: 'Both texts are required' });
     }
 
+    const backendUrl = getBackendURL(req);
     const [result1, result2] = await Promise.all([
-      getEmbedding(text1, modelId),
-      getEmbedding(text2, modelId)
+      getEmbedding(text1, modelId, backendUrl),
+      getEmbedding(text2, modelId, backendUrl)
     ]);
 
     const cosSim = cosineSimilarity(result1.embeddings, result2.embeddings);
@@ -211,7 +243,7 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
     
     console.log(`Upload request received - Corpus name: "${corpusName}", Model: ${modelId}, Corpus ID: ${corpusId}`);
 
-    const response = await axios.post(`${config.BACKEND_SERVICE_URL}/semantic/upload`, {}, {
+    const response = await axios.post(`${getBackendURL(req)}/semantic/upload`, {}, {
       headers: {
         'x-corpus-path': `/${corpusId}`,
         'x-model-id': modelId,
@@ -275,7 +307,7 @@ app.post('/api/clusterization', async (req, res) => {
     const ttlHours = req.headers['x-ttl-hours'] || config.defaults.ttlHours;
     const corpusId = req.headers['x-corpus-id'];
 
-    const response = await axios.post(`${config.BACKEND_SERVICE_URL}/clusterization`, {}, {
+    const response = await axios.post(`${getBackendURL(req)}/clusterization`, {}, {
       headers: {
         'x-corpus-path': corpusId, // для старых версий
         'x-corpus-id': corpusId, 
@@ -358,7 +390,7 @@ app.post('/api/classification', upload.array('files'), async (req, res) => {
       return res.status(400).json({ error: 'x-clustering-job-id header is required' });
     }
 
-    const response = await axios.post(`${config.BACKEND_SERVICE_URL}/classification`, {}, {
+    const response = await axios.post(`${getBackendURL(req)}/classification`, {}, {
       headers: {
         'x-corpus-path': corpusPath,
         'x-model-id': modelId,
@@ -373,6 +405,7 @@ app.post('/api/classification', upload.array('files'), async (req, res) => {
       type: 'classification',
       model_id: modelId,
       corpus_path: corpusPath,
+      corpus_id: req.corpusId,
       clustering_job_id: clusteringJobId,
       status: 'processing',
       created_at: new Date().toISOString(),
@@ -415,7 +448,7 @@ app.post('/api/classification/grnti', upload.array('files'), async (req, res) =>
       return res.status(400).json({ error: 'x-clustering-job-id header is required' });
     }
 
-    const response = await axios.post(`${config.BACKEND_SERVICE_URL}/classification/grnti`, {}, {
+    const response = await axios.post(`${getBackendURL(req)}/classification/grnti`, {}, {
       headers: {
         'x-corpus-path': corpusPath,
         'x-model-id': modelId,
@@ -463,7 +496,7 @@ app.post('/api/fine-tuning/start', upload.array('files'), async (req, res) => {
     const newModelName = req.headers['x-new-model-name'];
     const corpusId = req.corpusId;
 
-    const backendResponse = await fetch(`${config.BACKEND_SERVICE_URL}/fine-tuning/start`, {
+    const backendResponse = await fetch(`${getBackendURL(req)}/fine-tuning/start`, {
       method: 'POST',
       headers: {
         'X-Base-Model-ID': baseModelId,
@@ -497,7 +530,7 @@ app.post('/api/evaluation/precision', async (req, res) => {
       return res.status(400).json({ error: 'Missing required headers' });
     }
     
-    const response = await axios.post(`${config.BACKEND_SERVICE_URL}/evaluation/precision`, {}, {
+    const response = await axios.post(`${getBackendURL(req)}/evaluation/precision`, {}, {
       headers: {
         'x-classification-job-id': jobId,
         'x-evaluation-type': evalType,
@@ -526,7 +559,7 @@ app.post('/api/evaluation/recall', async (req, res) => {
       return res.status(400).json({ error: 'Missing required headers' });
     }
     
-    const response = await axios.post(`${config.BACKEND_SERVICE_URL}/evaluation/recall`, {}, {
+    const response = await axios.post(`${getBackendURL(req)}/evaluation/recall`, {}, {
       headers: {
         'x-classification-job-id': jobId,
         'x-evaluation-type': evalType,
@@ -550,7 +583,7 @@ app.post('/api/evaluation/recall', async (req, res) => {
 // Поиск
 app.post('/api/semantic/search', express.text(), async (req, res) => {
   try {
-    const response = await axios.post(`${config.BACKEND_SERVICE_URL}/semantic/search`, req.body, {
+    const response = await axios.post(`${getBackendURL(req)}/semantic/search`, req.body, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'x-corpus-id': req.headers['x-corpus-id'],
@@ -572,17 +605,17 @@ app.post('/api/semantic/search', express.text(), async (req, res) => {
 // Асинхрон
 app.get('/api/jobs/:jobId', async (req, res) => {
   try {
-    const response = await axios.get(`${config.BACKEND_SERVICE_URL}/jobs/${req.params.jobId}`);
-    
+    const response = await axios.get(`${getBackendURL(req)}/jobs/${req.params.jobId}`);
+
     const job = jobManager.getJob(req.params.jobId);
     if (job) {
       job.status = response.data.status;
       if (response.data.result_url) {
         job.result_url = response.data.result_url;
       }
-      jobManager.updateJob(job);
+      await jobManager.updateJob(job);
     }
-    
+
     res.json(response.data);
   } catch (error) {
     console.error('Job status error:', error);
@@ -598,12 +631,14 @@ app.get('/api/jobs/:jobId', async (req, res) => {
 app.get('/api/result', async (req, res) => {
     try {
         let resultUrl = req.headers['x-result-url'];
+        const jobId = req.headers['x-job-id'];
 
         if (!resultUrl) {
             return res.status(400).json({ error: 'Missing x-result-url header' });
         }
 
         console.log("Processing result URL:", resultUrl);
+        console.log("Job ID:", jobId);
 
         let response;
         
@@ -622,7 +657,7 @@ app.get('/api/result', async (req, res) => {
                 primaryError.code === 'ERR_INVALID_URL' || primaryError.code === 'EAI_AGAIN') {
                 
                 console.log("Network error detected, trying fallback...");
-                const fallbackUrl = await buildFallbackUrl(resultUrl);
+                const fallbackUrl = await buildFallbackUrl(resultUrl, req);
                 console.log("Fallback URL:", fallbackUrl);
                 
                 response = await axios.get(fallbackUrl, {
@@ -645,8 +680,21 @@ app.get('/api/result', async (req, res) => {
             });
         }
 
-        // Успешный ответ
-        res.json(response.data);
+        // Успешный ответ - добавляем corpus_id из информации о задании
+        const resultData = response.data;
+
+        // Если передан job_id, получаем corpus_id из базы данных
+        if (jobId) {
+            const jobInfo = jobManager.getJobById(jobId);
+            if (jobInfo && jobInfo.corpus_id) {
+                resultData.corpus_id = jobInfo.corpus_id;
+                console.log("Added corpus_id to results:", jobInfo.corpus_id);
+            } else {
+                console.warn("Job not found or missing corpus_id for job:", jobId);
+            }
+        }
+
+        res.json(resultData);
 
     } catch (error) {
         console.error('Results error:', error);
@@ -677,32 +725,34 @@ const getCorpusPath = (corpusId) => {
 };
 
 // Функция построения фоллбэк URL
-async function buildFallbackUrl(originalUrl) {
+async function buildFallbackUrl(originalUrl, req) {
     try {
         if (!originalUrl || typeof originalUrl !== 'string') {
             throw new Error('Invalid resultUrl provided');
         }
-        
+
         console.log("Building fallback URL from:", originalUrl);
-        
+
+        const backendUrl = getBackendURL(req);
+
         // Если это HTTP ссылка, заменяем домен
         if (originalUrl.startsWith('http')) {
             try {
                 const urlObj = new URL(originalUrl);
-                const fallbackUrl = `${config.BACKEND_SERVICE_URL.replace('/api', '')}${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
+                const fallbackUrl = `${backendUrl.replace('/api', '')}${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
                 console.log("Built HTTP fallback URL:", fallbackUrl);
                 return fallbackUrl;
             } catch (e) {
                 console.error('URL parsing error:', e);
                 // Если URL невалидный, считаем что это endpoint
-                const fallbackUrl = `${config.BACKEND_SERVICE_URL.replace('/api', '')}${originalUrl.startsWith('/') ? '' : '/'}${originalUrl}`;
+                const fallbackUrl = `${backendUrl.replace('/api', '')}${originalUrl.startsWith('/') ? '' : '/'}${originalUrl}`;
                 console.log("Built fallback from invalid URL:", fallbackUrl);
                 return fallbackUrl;
             }
         }
-        
+
         // Если это относительный путь
-        const fallbackUrl = `${config.BACKEND_SERVICE_URL.replace('/api', '')}${originalUrl.startsWith('/') ? '' : '/'}${originalUrl}`;
+        const fallbackUrl = `${backendUrl.replace('/api', '')}${originalUrl.startsWith('/') ? '' : '/'}${originalUrl}`;
         console.log("Built relative path fallback URL:", fallbackUrl);
         return fallbackUrl;
         
@@ -834,13 +884,32 @@ app.get('/api/classification/history', (req, res) => {
 
 // Simple GET routes
 
+// Backend management endpoints
+app.get('/api/backends', (req, res) => {
+  try {
+    res.json({
+      backends: Object.keys(config.BACKENDS).map(key => ({
+        id: key,
+        name: key.charAt(0).toUpperCase() + key.slice(1),
+        url: config.BACKENDS[key]
+      })),
+      current: config.DEFAULT_BACKEND
+    });
+  } catch (error) {
+    console.error('Error getting backends:', error);
+    res.status(500).json({ error: 'Failed to get backends', message: error.message });
+  }
+});
+
 app.get('/api/health', (req, res) => {
+  const backendUrl = getBackendURL(req);
   res.json({
     status: 'OK',
+    currentBackend: req.currentBackend,
     services: {
-      embedding: `${config.BACKEND_SERVICE_URL}/embedding`,
-      similarity: `${config.BACKEND_SERVICE_URL}/similarity`,
-      normalization: `${config.BACKEND_SERVICE_URL}/normalize`
+      embedding: `${backendUrl}/embedding`,
+      similarity: `${backendUrl}/similarity`,
+      normalization: `${backendUrl}/normalize`
     },
     timestamp: new Date().toISOString()
   });
@@ -894,7 +963,7 @@ app.get('/api/document', (req, res) => {
 
 app.get('/api/models', async (req, res) => {
   try {
-    const models = await axios.get(`${config.BACKEND_SERVICE_URL}/models`);
+    const models = await axios.get(`${getBackendURL(req)}/models`);
     res.json(models.data);
   } catch (error) {
     handleProxyError(error, 'Models list', res);
@@ -932,12 +1001,14 @@ app.use((err, req, res, next) => {
 // Инициализация баз данных и запуск сервера
 const startServer = async () => {
   try {
-    // Инициализируем базу данных из файлов
+    // Инициализируем базы данных из файлов
     await corpusDB.initialize();
-    
+    await jobManager.initialize();
+
     app.listen(config.PORT, () => {
       console.log(`Сервер запущен на http://localhost:${config.PORT}`);
       console.log('Постоянное хранилище базы данных корпусов включено');
+      console.log('Постоянное хранилище базы данных job\'ов включено');
     });
   } catch (error) {
     console.error('Не удалось запустить сервер:', error);

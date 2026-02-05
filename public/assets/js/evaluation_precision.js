@@ -6,7 +6,7 @@ async function loadClassificationHistory(type = 'all') {
     try {
         showStatus('🔄 Загрузка истории классификации...', 'processing');
 
-        const response = await fetch('/api/classification/history');
+        const response = await apiFetch('/api/classification/history');
 
         if (!response.ok) {
             throw new Error('Ошибка загрузки истории');
@@ -81,7 +81,7 @@ async function evaluatePrecision() {
         document.getElementById('evaluateBtn').disabled = true;
         showStatus('🧮 Вычисление точности...', 'processing');
 
-        const response = await fetch('/api/evaluation/precision', {
+        const response = await apiFetch('/api/evaluation/precision', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

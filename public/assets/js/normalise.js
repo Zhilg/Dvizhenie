@@ -74,9 +74,9 @@ document.addEventListener('DOMContentLoaded', () => {
             
             console.log('Отправляемый текст:', text.substring(0, 100) + '...');
             
-            const response = await fetch('/api/normalize', {
+            const response = await apiFetch('/api/normalize', {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'text/plain',
                     'Accept': 'text/plain'
                 },

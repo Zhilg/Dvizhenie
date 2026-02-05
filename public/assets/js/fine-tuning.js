@@ -46,7 +46,7 @@ function updateTimer() {
 async function loadModels() {
     try {
         showStatus('🔄 Загрузка моделей...', 'processing');
-        const response = await fetch('/api/models');
+        const response = await apiFetch('/api/models');
         
         if (!response.ok) {
             throw new Error('Ошибка загрузки моделей');
@@ -187,7 +187,7 @@ async function startFineTuning() {
         Array.from(files).forEach(file => formData.append('files', file));
         formData.append('new_model_name', newModelName);
 
-        const response = await fetch('/api/fine-tuning/start', {
+        const response = await apiFetch('/api/fine-tuning/start', {
             method: 'POST',
             headers: {
                 'X-Base-Model-ID': baseModelId
@@ -220,7 +220,7 @@ function startStatusChecking() {
     
     checkInterval = setInterval(async () => {
         try {
-            const response = await fetch(`/api/jobs/${currentJobId}`);
+            const response = await apiFetch(`/api/jobs/${currentJobId}`);
             if (!response.ok) throw new Error('Status check failed');
             
             const status = await response.json();
@@ -276,7 +276,7 @@ function updateProgress(status) {
 // Получение результатов дообучения
 async function fetchResults(resultUrl) {
     try {
-        const response = await fetch("/api/result", {
+        const response = await apiFetch("/api/result", {
             method: "GET",
             headers: {
                 "Content-Type": "application/json",
@@ -516,7 +516,7 @@ function getChangeBadgeText(status) {
 // Загрузка истории выполненных заданий дообучения
 async function loadFineTuningHistory() {
     try {
-        const response = await fetch('/api/fine-tuning/history');
+        const response = await apiFetch('/api/fine-tuning/history');
 
         if (response.ok) {
             const history = await response.json();

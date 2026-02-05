@@ -1,4 +1,6 @@
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 
 /**
  * Модуль для управления асинхронными задачами
@@ -6,11 +8,70 @@ const axios = require('axios');
  */
 
 class JobManager {
-  constructor(backendServiceUrl, corpusDB) {
+  constructor(backendServiceUrl, corpusDB, sharedDataPath) {
     this.backendServiceUrl = backendServiceUrl;
     this.corpusDB = corpusDB;
+    this.sharedDataPath = sharedDataPath || './shared_data';
+    this.jobsFilePath = path.join(this.sharedDataPath, 'jobs_database.json');
     this.jobsDB = { jobs: [] };
     this.pollQueue = new Map(); // Для отслеживания задач загрузки
+  }
+
+  /**
+   * Загружает базу данных job'ов из файла
+   * @returns {Promise<Object>} загруженные данные
+   */
+  async loadJobsFromFile() {
+    try {
+      if (fs.existsSync(this.jobsFilePath)) {
+        const data = fs.readFileSync(this.jobsFilePath, 'utf8');
+        const parsedData = JSON.parse(data);
+        console.log(`База данных job'ов загружена из файла ${this.jobsFilePath}: ${parsedData.jobs.length} задач`);
+        return parsedData;
+      } else {
+        console.log(`Файл базы данных job'ов ${this.jobsFilePath} не существует, используются данные по умолчанию`);
+        return { jobs: [] };
+      }
+    } catch (error) {
+      console.error(`Ошибка загрузки базы данных job'ов из ${this.jobsFilePath}:`, error);
+      return { jobs: [] };
+    }
+  }
+
+  /**
+   * Сохраняет базу данных job'ов в файл
+   * @returns {Promise<boolean>} успешность операции
+   */
+  async saveJobsToFile() {
+    try {
+      // Убеждаемся, что директория существует
+      const dir = path.dirname(this.jobsFilePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      // Записываем данные в файл
+      fs.writeFileSync(this.jobsFilePath, JSON.stringify(this.jobsDB, null, 2), 'utf8');
+      console.log(`База данных job'ов сохранена в файл ${this.jobsFilePath}: ${this.jobsDB.jobs.length} задач`);
+      return true;
+    } catch (error) {
+      console.error(`Ошибка сохранения базы данных job'ов в файл ${this.jobsFilePath}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Инициализирует базу данных job'ов из файла
+   * @returns {Promise<void>}
+   */
+  async initialize() {
+    try {
+      this.jobsDB = await this.loadJobsFromFile();
+      console.log('База данных job\'ов успешно инициализирована');
+    } catch (error) {
+      console.error('Ошибка инициализации базы данных job\'ов:', error);
+      this.jobsDB = { jobs: [] };
+    }
   }
 
   /**
@@ -23,10 +84,13 @@ class JobManager {
       if (!jobData.created_at) {
         jobData.created_at = new Date().toISOString();
       }
-      
+
       this.jobsDB.jobs.push(jobData);
       console.log(`Задача сохранена в БД: ${jobData.job_id} (тип: ${jobData.type})`);
-      
+
+      // Сохраняем в файл
+      await this.saveJobsToFile();
+
       return true;
     } catch (error) {
       console.error('Ошибка сохранения задачи в БД:', error);
@@ -48,10 +112,12 @@ class JobManager {
    * @param {string} jobId - ID задачи
    * @param {Object} statusData - данные статуса
    */
-  updateJobStatus(jobId, statusData) {
+  async updateJobStatus(jobId, statusData) {
     const jobIndex = this.jobsDB.jobs.findIndex(job => job.job_id === jobId);
     if (jobIndex !== -1) {
       Object.assign(this.jobsDB.jobs[jobIndex], statusData);
+      // Сохраняем в файл
+      await this.saveJobsToFile();
     }
   }
 
@@ -234,6 +300,8 @@ class JobManager {
             }
             this.jobsDB.jobs[jobIndex].progress = status.progress || 0;
             this.jobsDB.jobs[jobIndex].updated_at = new Date().toISOString();
+            // Сохраняем в файл при обновлении статуса
+            await this.saveJobsToFile();
           }
 
           console.log(`=== DEBUG: Статус задачи ${jobId}: ${status.status} ===`);
@@ -286,16 +354,18 @@ class JobManager {
    */
   async getJobStatus(jobId) {
     try {
-      const response = await axios.get(`${this.backendServiceURL}/jobs/${jobId}`);
-      
+      const response = await axios.get(`${this.backendServiceUrl}/jobs/${jobId}`);
+
       const jobIndex = this.jobsDB.jobs.findIndex(job => job.job_id === jobId);
       if (jobIndex !== -1) {
         this.jobsDB.jobs[jobIndex].status = response.data.status;
         if (response.data.result_url) {
           this.jobsDB.jobs[jobIndex].result_url = response.data.result_url;
         }
+        // Сохраняем в файл при обновлении статуса
+        await this.saveJobsToFile();
       }
-      
+
       return response.data;
     } catch (error) {
       console.error('Ошибка получения статуса задачи:', error);
@@ -410,12 +480,14 @@ class JobManager {
   /**
    * Обновляет задачу в базе данных
    * @param {Object} job - обновленная задача
-   * @returns {boolean} успешность операции
+   * @returns {Promise<boolean>} успешность операции
    */
-  updateJob(job) {
+  async updateJob(job) {
     const index = this.jobsDB.jobs.findIndex(j => j.job_id === job.job_id);
     if (index !== -1) {
       this.jobsDB.jobs[index] = { ...this.jobsDB.jobs[index], ...job };
+      // Сохраняем в файл
+      await this.saveJobsToFile();
       return true;
     }
     return false;
