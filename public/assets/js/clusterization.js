@@ -28,14 +28,52 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadCorpusHistory();
     startClusteringBtn.addEventListener('click', startClustering);
     exportBtn.addEventListener('click', exportResults);
-    
+
     // Setup JSON upload functionality
     setupJsonUpload();
+
+    // Обработчик изменения лимита кластеров
+    const clusterLimitSelect = document.getElementById('clusterLimit');
+    const clusterLimitCustom = document.getElementById('clusterLimitCustom');
+
+    if (clusterLimitSelect) {
+        clusterLimitSelect.addEventListener('change', () => {
+            if (clusterLimitSelect.value === 'custom') {
+                clusterLimitCustom.style.display = 'block';
+                clusterLimitCustom.focus();
+            } else {
+                clusterLimitCustom.style.display = 'none';
+                if (clustersData) {
+                    displayClusters(clustersData);
+                }
+            }
+        });
+    }
+
+    if (clusterLimitCustom) {
+        clusterLimitCustom.addEventListener('change', () => {
+            if (clustersData && clusterLimitCustom.value) {
+                displayClusters(clustersData);
+            }
+        });
+
+        clusterLimitCustom.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter' && clustersData && clusterLimitCustom.value) {
+                displayClusters(clustersData);
+            }
+        });
+    }
+
+    // Инициализация resizable сайдбара
+    initResizableSidebar();
+
+    // Инициализация поиска файлов
+    initFileSearch();
 });
 
 async function loadModels() {
     try {
-        const response = await fetch(`${BASE_URL}/models`);
+        const response = await apiFetch(`${BASE_URL}/models`);
         if (response.ok) {
             availableModels = await response.json();
         }
@@ -51,7 +89,7 @@ function getModelNameById(modelId) {
 
 async function loadCorpusHistory() {
     try {
-        const response = await fetch('/corpus-history');
+        const response = await apiFetch('/corpus-history');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         corpusHistory = await response.json();
@@ -150,7 +188,7 @@ async function startClustering() {
 
     try {
         
-        const response = await fetch(`${API_BASE_URL}/clusterization`, {
+        const response = await apiFetch(`${API_BASE_URL}/clusterization`, {
             method: 'POST',
             headers: {
                 'x-model-id': modelSelect,
@@ -182,7 +220,7 @@ async function checkClusteringStatus() {
         if (currentJobId.startsWith('/')) {
             currentJobId = currentJobId.substring(1);
         }
-        const response = await fetch(`${API_BASE_URL}/jobs/${currentJobId}`);
+        const response = await apiFetch(`${API_BASE_URL}/jobs/${currentJobId}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const status = await response.json();
@@ -213,7 +251,7 @@ async function getClusteringResults(resultUrl) {
     try {
         showStatus('Получение результатов...', 'info');
 
-        const response = await fetch("/api/result", {
+        const response = await apiFetch("/api/result", {
             method: "GET",
             headers: {
                 "Content-Type": "application/json",
@@ -254,10 +292,43 @@ function displayClusters(clustersData) {
         return;
     }
 
-    clustersData.data.children.forEach((cluster, index) => {
+    // Сортируем кластеры по количеству файлов (от большего к меньшему)
+    const sortedClusters = [...clustersData.data.children].sort((a, b) => {
+        const countA = a.fileCount || 0;
+        const countB = b.fileCount || 0;
+        return countB - countA;
+    });
+
+    // Получаем количество кластеров из селектора или custom input
+    const clusterLimitSelect = document.getElementById('clusterLimit');
+    const clusterLimitCustom = document.getElementById('clusterLimitCustom');
+
+    let limit = 10; // значение по умолчанию
+
+    if (clusterLimitSelect) {
+        if (clusterLimitSelect.value === 'custom' && clusterLimitCustom && clusterLimitCustom.value) {
+            limit = parseInt(clusterLimitCustom.value) || 10;
+        } else if (clusterLimitSelect.value !== 'custom') {
+            limit = parseInt(clusterLimitSelect.value) || 10;
+        }
+    }
+
+    // Ограничиваем до выбранного количества
+    const topClusters = sortedClusters.slice(0, limit);
+    const totalClusters = sortedClusters.length;
+
+    topClusters.forEach((cluster, index) => {
         const clusterElement = createClusterElement(cluster, index, 0);
         clusterTree.appendChild(clusterElement);
     });
+
+    // Добавляем индикатор, если кластеров больше выбранного лимита
+    if (totalClusters > limit) {
+        const indicator = document.createElement('div');
+        indicator.className = 'cluster-limit-indicator';
+        indicator.textContent = `Показано ${limit} из ${totalClusters} кластеров`;
+        clusterTree.appendChild(indicator);
+    }
 
     setTimeout(() => {
         const firstItem = clusterTree.querySelector('.cluster-item');
@@ -294,6 +365,20 @@ function createClusterElement(cluster, index, level) {
     clusterItem.appendChild(clusterName);
     clusterItem.appendChild(clusterSize);
 
+    // Получаем количество кластеров из селектора или custom input
+    const clusterLimitSelect = document.getElementById('clusterLimit');
+    const clusterLimitCustom = document.getElementById('clusterLimitCustom');
+
+    let limit = 10; // значение по умолчанию
+
+    if (clusterLimitSelect) {
+        if (clusterLimitSelect.value === 'custom' && clusterLimitCustom && clusterLimitCustom.value) {
+            limit = parseInt(clusterLimitCustom.value) || 10;
+        } else if (clusterLimitSelect.value !== 'custom') {
+            limit = parseInt(clusterLimitSelect.value) || 10;
+        }
+    }
+
     const subClustersContainer = document.createElement('div');
     subClustersContainer.className = 'sub-clusters';
 
@@ -319,10 +404,31 @@ function createClusterElement(cluster, index, level) {
 
     if (cluster.children && cluster.children.length > 0) {
         expandIcon.style.visibility = 'visible';
-        cluster.children.forEach((subCluster, subIndex) => {
+
+        // Сортируем подкластеры по количеству файлов (от большего к меньшему)
+        const sortedChildren = [...cluster.children].sort((a, b) => {
+            const countA = a.fileCount || 0;
+            const countB = b.fileCount || 0;
+            return countB - countA;
+        });
+
+        // Ограничиваем до топ-10
+        const topChildren = sortedChildren.slice(0, limit);
+        const totalChildren = sortedChildren.length;
+
+        topChildren.forEach((subCluster, subIndex) => {
             const subClusterElement = createClusterElement(subCluster, subIndex, level + 1);
             subClustersContainer.appendChild(subClusterElement);
         });
+
+        // Добавляем индикатор, если подкластеров больше 10
+        if (totalChildren > limit) {
+            const indicator = document.createElement('div');
+            indicator.className = 'cluster-limit-indicator';
+            indicator.style.paddingLeft = ((level + 1) * 20) + 'px';
+            indicator.textContent = `Показано топ-${limit} из ${totalChildren} подкластеров`;
+            subClustersContainer.appendChild(indicator);
+        }
     } else {
         expandIcon.style.visibility = 'hidden';
     }
@@ -336,9 +442,13 @@ function displayClusterInfo(cluster, clusterId) {
     const fileCount = (cluster && typeof cluster.fileCount === 'number') ? cluster.fileCount : 0;
     const clusterName = (cluster && cluster.name) ? cluster.name : `Кластер ${clusterId + 1}`;
     const similarityText = (cluster && cluster.avgSimilarity !== undefined) ?
-    `, Средняя схожесть: ${(cluster.avgSimilarity * 100).toFixed(2)}%` : '';
+    ` | Средняя схожесть: ${(cluster.avgSimilarity * 100).toFixed(2)}%` : '';
 
-    clusterInfo.textContent = `${clusterName}: ${fileCount} документов${similarityText}`;
+    // Добавляем информацию о подкластерах
+    const childrenCount = (cluster && cluster.children) ? cluster.children.length : 0;
+    const childrenText = childrenCount > 0 ? ` | Подкластеров: ${Math.min(childrenCount, 10)}${childrenCount > 10 ? ' (из ' + childrenCount + ')' : ''}` : '';
+
+    clusterInfo.textContent = `${clusterName}: ${fileCount} документов${similarityText}${childrenText}`;
 
     // Add small delay to ensure DOM is ready
     setTimeout(() => {
@@ -504,22 +614,38 @@ function getColorByIndex(index) {
 
 function displayClusterDocuments(documents) {
     if (!documents || documents.length === 0) {
-        filesTableBody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 30px;">Документы не найдены</td></tr>';
+        filesTableBody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 30px;">Документы не найдены</td></tr>';
+
+        // Обновляем заголовок панели
+        const panelHeader = document.querySelector('.panel_documents .panel-header');
+        if (panelHeader) {
+            panelHeader.querySelector('span').textContent = 'Документы в кластере';
+        }
         return;
     }
 
+    // Сортируем документы по схожести (от большей к меньшей)
+    const sortedDocuments = [...documents].sort((a, b) => {
+        const simA = (a && a.similarity !== undefined) ? a.similarity : 0;
+        const simB = (b && b.similarity !== undefined) ? b.similarity : 0;
+        return simB - simA;
+    });
+
+    // Обновляем заголовок панели
+    const panelHeader = document.querySelector('.panel_documents .panel-header');
+    if (panelHeader) {
+        panelHeader.innerHTML = `<span>Документы в кластере: ${sortedDocuments.length} шт.</span>`;
+    }
+
     filesTableBody.innerHTML = '';
-    documents.forEach((doc, index) => {
+    sortedDocuments.forEach((doc, index) => {
         if (!doc) return; // Skip null/undefined documents
 
         const row = document.createElement('tr');
 
         const fileNameCell = document.createElement('td');
         fileNameCell.textContent = (doc && (doc.name || doc.filename)) ? (doc.name || doc.filename) : `Документ ${index + 1}`;
-        fileNameCell.style.wordWrap = 'break-word';
-
-        const similarityCell = document.createElement('td');
-        similarityCell.textContent = (doc && doc.similarity !== undefined) ? `${(doc.similarity * 100).toFixed(2)}%` : 'N/A';
+        fileNameCell.style.wordBreak = 'break-word';
 
         const sizeCell = document.createElement('td');
         sizeCell.textContent = (doc && doc.size) ? formatFileSize(doc.size) : 'N/A';
@@ -532,7 +658,6 @@ function displayClusterDocuments(documents) {
         actionsCell.appendChild(previewBtn);
 
         row.appendChild(fileNameCell);
-        row.appendChild(similarityCell);
         row.appendChild(sizeCell);
         row.appendChild(actionsCell);
         filesTableBody.appendChild(row);
@@ -588,7 +713,7 @@ async function previewDocument(documentInfo) {
             return;
         }
 
-        const response = await fetch(`${BASE_URL}/document?corpus_id=${currentCorpusId}&document_id=${documentInfo.name}`);
+        const response = await apiFetch(`${BASE_URL}/document?corpus_id=${currentCorpusId}&document_id=${documentInfo.name}`);
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || `HTTP ${response.status}`);
@@ -972,4 +1097,447 @@ function resetUI() {
     startClusteringBtn.disabled = false;
     startClusteringBtn.innerHTML = 'Запустить кластеризацию';
     clearInterval(timerInterval);
+}
+
+// Инициализация изменяемого размера сайдбара
+function initResizableSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const container = document.querySelector('.container');
+
+    if (!sidebar || !container) return;
+
+    // Создаём handle для изменения размера
+    const resizeHandle = document.createElement('div');
+    resizeHandle.className = 'resize-handle';
+    sidebar.appendChild(resizeHandle);
+
+    let isResizing = false;
+    let startX = 0;
+    let startWidth = 0;
+
+    resizeHandle.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        startX = e.clientX;
+        startWidth = sidebar.offsetWidth;
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+
+        const delta = e.clientX - startX;
+        const newWidth = startWidth + delta;
+
+        // Ограничиваем ширину от 300px до 900px
+        if (newWidth >= 300 && newWidth <= 900) {
+            container.style.gridTemplateColumns = `${newWidth}px 1fr`;
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (isResizing) {
+            isResizing = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        }
+    });
+}
+
+// Инициализация функциональности поиска файлов
+function initFileSearch() {
+    const fileSearchInput = document.getElementById('fileSearch');
+    const clearSearchBtn = document.getElementById('clearSearchBtn');
+
+    if (clearSearchBtn) {
+        clearSearchBtn.addEventListener('click', clearFileSearch);
+    }
+
+    if (fileSearchInput) {
+        // Поиск в реальном времени при вводе
+        fileSearchInput.addEventListener('input', () => {
+            performFileSearch();
+        });
+
+        // Поиск по нажатию Enter
+        fileSearchInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') {
+                performFileSearch();
+            }
+        });
+    }
+}
+
+// Выполнение поиска файла в кластерах
+function performFileSearch() {
+    const fileSearchInput = document.getElementById('fileSearch');
+    const clearSearchBtn = document.getElementById('clearSearchBtn');
+    const searchInfo = document.getElementById('searchInfo');
+    const clustersLabel = document.getElementById('clustersLabel');
+    const searchQuery = fileSearchInput.value.trim();
+
+    if (!clustersData || !clustersData.data || !clustersData.data.children) {
+        return;
+    }
+
+    if (!searchQuery) {
+        // Если поисковый запрос пустой, показываем все кластеры
+        clearFileSearch();
+        return;
+    }
+
+    // Фильтруем кластеры, оставляя только те, в которых есть искомый файл
+    const filteredData = {
+        ...clustersData,
+        data: {
+            ...clustersData.data,
+            children: filterClustersWithFile(clustersData.data.children, searchQuery)
+        }
+    };
+
+    // Подсчитываем количество найденных файлов и кластеров
+    const stats = countFilesAndClusters(filteredData.data.children, searchQuery);
+
+    if (stats.filesCount > 0) {
+        // Отображаем отфильтрованное дерево
+        displayFilteredClusters(filteredData, searchQuery);
+
+        // Показываем информацию о результатах
+        searchInfo.style.display = 'block';
+        searchInfo.innerHTML = `
+            🔍 Найдено: <strong>${stats.filesCount}</strong> файл(ов) в <strong>${stats.clustersCount}</strong> кластере(ах)
+        `;
+
+        clearSearchBtn.style.display = 'inline-block';
+        clustersLabel.textContent = `Кластеры (фильтр: "${searchQuery}"):`;
+        showStatus(`Найдено ${stats.filesCount} файл(ов) в ${stats.clustersCount} кластере(ах)`, 'success');
+    } else {
+        // Если ничего не найдено
+        clusterTree.innerHTML = `
+            <div class="search-no-results" style="padding: 20px; text-align: center; color: #999;">
+                Файлы, содержащие "${searchQuery}", не найдены
+            </div>
+        `;
+
+        searchInfo.style.display = 'block';
+        searchInfo.innerHTML = `🔍 Файлы, содержащие "${searchQuery}", не найдены`;
+        searchInfo.style.background = '#fff3cd';
+        searchInfo.style.color = '#856404';
+
+        clearSearchBtn.style.display = 'inline-block';
+        clustersLabel.textContent = `Кластеры (фильтр: "${searchQuery}"):`;
+        showStatus(`Файл "${searchQuery}" не найден`, 'warning');
+    }
+}
+
+// Рекурсивная фильтрация кластеров - оставляем только те, в которых есть искомый файл
+function filterClustersWithFile(clusters, searchQuery) {
+    if (!clusters || !Array.isArray(clusters)) return [];
+
+    const filtered = [];
+
+    clusters.forEach(cluster => {
+        if (!cluster) return;
+
+        // Проверяем, есть ли искомый файл в текущем кластере
+        let hasMatchingFile = false;
+        if (cluster.files && Array.isArray(cluster.files)) {
+            hasMatchingFile = cluster.files.some(file => {
+                const fileName = file.name || file.filename || '';
+                return fileName.toLowerCase().includes(searchQuery.toLowerCase());
+            });
+        }
+
+        // Рекурсивно фильтруем подкластеры
+        let filteredChildren = [];
+        if (cluster.children && Array.isArray(cluster.children)) {
+            filteredChildren = filterClustersWithFile(cluster.children, searchQuery);
+        }
+
+        // Если в кластере есть совпадающий файл или есть подкластеры с совпадениями - добавляем его
+        if (hasMatchingFile || filteredChildren.length > 0) {
+            filtered.push({
+                ...cluster,
+                children: filteredChildren
+            });
+        }
+    });
+
+    return filtered;
+}
+
+// Подсчет количества найденных файлов и кластеров
+function countFilesAndClusters(clusters, searchQuery) {
+    let filesCount = 0;
+    let clustersCount = 0;
+
+    function count(clusters) {
+        if (!clusters || !Array.isArray(clusters)) return;
+
+        clusters.forEach(cluster => {
+            if (!cluster) return;
+
+            let hasMatchingFiles = false;
+
+            // Подсчитываем файлы в текущем кластере
+            if (cluster.files && Array.isArray(cluster.files)) {
+                const matchingFiles = cluster.files.filter(file => {
+                    const fileName = file.name || file.filename || '';
+                    return fileName.toLowerCase().includes(searchQuery.toLowerCase());
+                });
+
+                if (matchingFiles.length > 0) {
+                    filesCount += matchingFiles.length;
+                    hasMatchingFiles = true;
+                }
+            }
+
+            // Рекурсивно подсчитываем в подкластерах
+            if (cluster.children && Array.isArray(cluster.children)) {
+                count(cluster.children);
+            }
+
+            if (hasMatchingFiles) {
+                clustersCount++;
+            }
+        });
+    }
+
+    count(clusters);
+    return { filesCount, clustersCount };
+}
+
+// Отображение отфильтрованного дерева кластеров
+function displayFilteredClusters(filteredData, searchQuery) {
+    clusterTree.innerHTML = '';
+
+    if (!filteredData || !filteredData.data || !filteredData.data.children || filteredData.data.children.length === 0) {
+        clusterTree.innerHTML = '<div class="empty-folder">Кластеры не найдены</div>';
+        return;
+    }
+
+    // Сортируем кластеры по количеству файлов (от большего к меньшему)
+    const sortedClusters = [...filteredData.data.children].sort((a, b) => {
+        const countA = a.fileCount || 0;
+        const countB = b.fileCount || 0;
+        return countB - countA;
+    });
+
+    sortedClusters.forEach((cluster, index) => {
+        const clusterElement = createFilteredClusterElement(cluster, index, 0, searchQuery);
+        clusterTree.appendChild(clusterElement);
+    });
+
+    // Автоматически раскрываем все кластеры
+    setTimeout(() => {
+        expandAll();
+    }, 100);
+}
+
+// Создание элемента кластера с подсветкой найденных файлов
+function createFilteredClusterElement(cluster, index, level, searchQuery) {
+    if (!cluster) return document.createElement('div');
+
+    const container = document.createElement('div');
+    const clusterItem = document.createElement('div');
+    clusterItem.className = 'cluster-item';
+    clusterItem.dataset.clusterId = cluster.id || index;
+    clusterItem.style.paddingLeft = (level * 20) + 'px';
+
+    const expandIcon = document.createElement('span');
+    expandIcon.className = 'expand-icon';
+
+    const folderIcon = document.createElement('span');
+    folderIcon.className = 'cluster-icon';
+    folderIcon.innerHTML = '📁';
+
+    const clusterName = document.createElement('span');
+    clusterName.className = 'cluster-name';
+    clusterName.textContent = cluster.name || `Кластер ${index + 1}`;
+
+    // Подсчитываем только совпадающие файлы
+    let matchingFilesCount = 0;
+    if (cluster.files && Array.isArray(cluster.files)) {
+        matchingFilesCount = cluster.files.filter(file => {
+            const fileName = file.name || file.filename || '';
+            return fileName.toLowerCase().includes(searchQuery.toLowerCase());
+        }).length;
+    }
+
+    const clusterSize = document.createElement('span');
+    clusterSize.className = 'cluster-size';
+    clusterSize.style.backgroundColor = matchingFilesCount > 0 ? '#ffc107' : '#3498db';
+    clusterSize.textContent = matchingFilesCount > 0 ? matchingFilesCount.toString() : (cluster.fileCount || 0).toString();
+
+    clusterItem.appendChild(expandIcon);
+    clusterItem.appendChild(folderIcon);
+    clusterItem.appendChild(clusterName);
+    clusterItem.appendChild(clusterSize);
+
+    const subClustersContainer = document.createElement('div');
+    subClustersContainer.className = 'sub-clusters';
+
+    clusterItem.addEventListener('click', (e) => {
+        if (e.target !== expandIcon) {
+            document.querySelectorAll('.cluster-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            clusterItem.classList.add('active');
+            currentClusterId = cluster.id || index;
+            displayClusterInfo(cluster, index);
+            displayFilteredClusterDocuments(cluster.files || [], searchQuery);
+        }
+    });
+
+    expandIcon.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (cluster.children && cluster.children.length > 0) {
+            expandIcon.classList.toggle('expanded');
+            subClustersContainer.classList.toggle('expanded');
+        }
+    });
+
+    if (cluster.children && cluster.children.length > 0) {
+        expandIcon.style.visibility = 'visible';
+
+        cluster.children.forEach((subCluster, subIndex) => {
+            const subClusterElement = createFilteredClusterElement(subCluster, subIndex, level + 1, searchQuery);
+            subClustersContainer.appendChild(subClusterElement);
+        });
+    } else {
+        expandIcon.style.visibility = 'hidden';
+    }
+
+    container.appendChild(clusterItem);
+    container.appendChild(subClustersContainer);
+    return container;
+}
+
+// Отображение документов кластера с подсветкой найденных файлов
+function displayFilteredClusterDocuments(documents, searchQuery) {
+    if (!documents || documents.length === 0) {
+        filesTableBody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 30px;">Документы не найдены</td></tr>';
+        return;
+    }
+
+    // Подсчитываем количество совпадающих документов
+    const matchingCount = documents.filter(doc => {
+        const fileName = (doc && (doc.name || doc.filename)) || '';
+        return fileName.toLowerCase().includes(searchQuery.toLowerCase());
+    }).length;
+
+    // Сортируем ВСЕ документы по схожести (от большей к меньшей)
+    const sortedDocuments = [...documents].sort((a, b) => {
+        const simA = (a && a.similarity !== undefined) ? a.similarity : 0;
+        const simB = (b && b.similarity !== undefined) ? b.similarity : 0;
+        return simB - simA;
+    });
+
+    // Обновляем заголовок панели
+    const panelHeader = document.querySelector('.panel_documents .panel-header');
+    if (panelHeader) {
+        panelHeader.innerHTML = `<span>Документы в кластере: ${sortedDocuments.length} шт. (найдено: ${matchingCount})</span>`;
+    }
+
+    filesTableBody.innerHTML = '';
+    sortedDocuments.forEach((doc, index) => {
+        if (!doc) return;
+
+        const fileName = (doc && (doc.name || doc.filename)) ? (doc.name || doc.filename) : `Документ ${index + 1}`;
+        const isMatching = fileName.toLowerCase().includes(searchQuery.toLowerCase());
+
+        const row = document.createElement('tr');
+
+        // Подсвечиваем найденные файлы желтым фоном
+        if (isMatching) {
+            row.style.backgroundColor = '#fff3cd';
+        }
+
+        const fileNameCell = document.createElement('td');
+
+        // Подсвечиваем совпадающую часть в имени файла для найденных
+        if (isMatching) {
+            const highlightedName = highlightSearchQuery(fileName, searchQuery);
+            fileNameCell.innerHTML = highlightedName;
+            fileNameCell.style.fontWeight = 'bold';
+        } else {
+            fileNameCell.textContent = fileName;
+        }
+        fileNameCell.style.wordBreak = 'break-word';
+
+        const sizeCell = document.createElement('td');
+        sizeCell.textContent = (doc && doc.size) ? formatFileSize(doc.size) : 'N/A';
+
+        const actionsCell = document.createElement('td');
+        const previewBtn = document.createElement('button');
+        previewBtn.className = 'btn btn-primary';
+        previewBtn.textContent = 'Просмотр';
+        previewBtn.addEventListener('click', () => previewDocument(doc));
+        actionsCell.appendChild(previewBtn);
+
+        row.appendChild(fileNameCell);
+        row.appendChild(sizeCell);
+        row.appendChild(actionsCell);
+        filesTableBody.appendChild(row);
+    });
+}
+
+// Функция для подсветки совпадающей части в имени файла
+function highlightSearchQuery(text, query) {
+    if (!query) return text;
+
+    // Экранируем специальные символы регулярных выражений
+    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escapedQuery})`, 'gi');
+    return text.replace(regex, '<mark style="background-color: #ffeb3b; padding: 2px 4px; border-radius: 2px;">$1</mark>');
+}
+
+// Очистка фильтра поиска и восстановление полного дерева кластеров
+function clearFileSearch() {
+    const fileSearchInput = document.getElementById('fileSearch');
+    const searchInfo = document.getElementById('searchInfo');
+    const clearSearchBtn = document.getElementById('clearSearchBtn');
+    const clustersLabel = document.getElementById('clustersLabel');
+
+    fileSearchInput.value = '';
+    searchInfo.style.display = 'none';
+    searchInfo.style.background = '#e7f3ff';
+    searchInfo.style.color = '#0066cc';
+    clearSearchBtn.style.display = 'none';
+    clustersLabel.textContent = 'Кластеры:';
+
+    // Восстанавливаем полное дерево кластеров
+    if (clustersData) {
+        displayClusters(clustersData);
+        showStatus('Фильтр поиска сброшен', 'info');
+    }
+}
+
+// Раскрыть все кластеры
+function expandAll() {
+    document.querySelectorAll('.expand-icon').forEach(icon => {
+        icon.classList.add('expanded');
+    });
+    document.querySelectorAll('.sub-clusters').forEach(container => {
+        container.classList.add('expanded');
+    });
+}
+
+// Свернуть все кластеры
+function collapseAll() {
+    document.querySelectorAll('.expand-icon').forEach(icon => {
+        icon.classList.remove('expanded');
+    });
+    document.querySelectorAll('.sub-clusters').forEach(container => {
+        container.classList.remove('expanded');
+    });
+}
+
+// Переключение компактного режима
+function toggleCompactMode() {
+    const clusterTree = document.getElementById('clusterTree');
+    if (clusterTree) {
+        clusterTree.classList.toggle('compact');
+    }
 }

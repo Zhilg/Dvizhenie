@@ -41,7 +41,7 @@ function setupEventListeners() {
 // Загрузка списка доступных моделей с сервера
 async function loadModels() {
     try {
-        const response = await fetch(`${BASE_URL}/models`);
+        const response = await apiFetch(`${BASE_URL}/models`);
         if (response.ok) {
             availableModels = await response.json(); // Сохранение списка моделей
         }
@@ -88,15 +88,15 @@ function getModelNameById(modelId) {
 async function loadCorpusDropdown() {
     try {
         // Use server-side endpoint for consistency
-        const response = await fetch('/corpus-history');
+        const response = await apiFetch('/corpus-history');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
+
         const history = await response.json();
         const corpusSelect = document.getElementById('corpusId');
 
         const currentValue = corpusSelect.value; // Сохраняем текущее значение
         corpusSelect.innerHTML = '<option value="">-- Выберите корпус --</option>'; // Очищаем список
-        
+
         // Добавляем опции для каждого корпуса из истории
         history.forEach(corpus => {
             console.log(corpus);
@@ -140,9 +140,9 @@ async function updateCorpusInfo() {
 
     try {
         // Use server-side endpoint for consistency
-        const response = await fetch('/corpus-history');
+        const response = await apiFetch('/corpus-history');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
+
         const history = await response.json();
         const corpus = history.find(item => item.id === corpusId); // Ищем информацию о корпусе
 
@@ -194,7 +194,7 @@ async function searchDocuments() {
     // Получение информации о модели из истории корпусов
     let corpusInfo;
     try {
-        const response = await fetch('/corpus-history');
+        const response = await apiFetch('/corpus-history');
         if (response.ok) {
             const history = await response.json();
             corpusInfo = history.find(item => item.id === corpusId);
@@ -202,7 +202,7 @@ async function searchDocuments() {
     } catch (error) {
         console.warn('Failed to get corpus info from server, using localStorage fallback');
     }
-    
+
     // Fallback to localStorage if server fails
     if (!corpusInfo) {
         const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
@@ -220,7 +220,7 @@ async function searchDocuments() {
 
     try {
         // Отправка запроса на семантический поиск
-        const response = await fetch(`${BASE_URL}/semantic/search`, {
+        const response = await apiFetch(`${BASE_URL}/semantic/search`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'text/plain; charset=utf-8',
@@ -267,7 +267,7 @@ function displaySearchResults(results) {
             <tr>
                 <td>
                     <div class="file-info">
-                        <strong class="file-name">${result.file_id}</strong>
+                        <strong class="file-name clickable-filename" data-file-id="${result.file_id}" style="color: #0d6efd; cursor: pointer; text-decoration: underline;">${result.file_id}</strong>
                         ${result.fragment ? `<div class="fragment-info text-muted">${result.fragment}</div>` : ''}
                     </div>
                 </td>
@@ -337,8 +337,20 @@ function displaySearchResults(results) {
         .table td {
             vertical-align: top;
         }
+        .clickable-filename:hover {
+            color: #0a58ca !important;
+            text-decoration: underline !important;
+        }
     `;
     document.head.appendChild(style);
+
+    // Добавляем обработчики кликов для названий файлов
+    document.querySelectorAll('.clickable-filename').forEach(fileNameElement => {
+        fileNameElement.addEventListener('click', async function() {
+            const fileId = this.getAttribute('data-file-id');
+            await showFileContent(fileId);
+        });
+    });
 
     // Прокрутка страницы к результатам
     document.getElementById('resultsContainer').scrollIntoView({ behavior: 'smooth' });
@@ -348,9 +360,9 @@ function displaySearchResults(results) {
 async function showHistoryModal() {
     try {
         // Use server-side endpoint for consistency
-        const response = await fetch('/corpus-history');
+        const response = await apiFetch('/corpus-history');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
+
         const history = await response.json();
         const modalBody = document.getElementById('historyModalBody');
 
@@ -392,7 +404,7 @@ async function showHistoryModal() {
 
             // Добавление обработчиков событий для кнопок "Использовать"
             document.querySelectorAll('.use-corpus-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
+                btn.addEventListener('click', function () {
                     document.getElementById('corpusId').value = this.getAttribute('data-id'); // Выбор корпуса
                     bootstrap.Modal.getInstance(document.getElementById('historyModal')).hide(); // Закрытие модального окна
                     updateCorpusInfo(); // Обновление информации о корпусе
@@ -407,13 +419,13 @@ async function showHistoryModal() {
         // Fallback to localStorage if server fails
         const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
         const modalBody = document.getElementById('historyModalBody');
-        
+
         if (history.length === 0) {
             modalBody.innerHTML = '<p>История корпусов пуста (сервер недоступен)</p>';
         } else {
             modalBody.innerHTML = '<p>Ошибка загрузки с сервера, показаны локальные данные</p>';
         }
-        
+
         new bootstrap.Modal(document.getElementById('historyModal')).show();
     }
 }
@@ -438,3 +450,80 @@ async function loadCorpusHistory() {
         return JSON.parse(localStorage.getItem('corpusHistory')) || [];
     }
 }
+
+// Функция для отображения содержимого файла в модальном окне
+async function showFileContent(fileId) {
+    const modal = new bootstrap.Modal(document.getElementById('fileContentModal'));
+    const modalTitle = document.getElementById('fileContentModalTitle');
+    const modalBody = document.getElementById('fileContentModalBody');
+
+    // Устанавливаем заголовок модального окна
+    modalTitle.textContent = `Содержимое файла: ${fileId}`;
+
+    // Показываем индикатор загрузки
+    modalBody.innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Загрузка...</span>
+            </div>
+            <p class="mt-3">Загрузка содержимого файла...</p>
+        </div>
+    `;
+
+    // Показываем модальное окно
+    modal.show();
+
+    try {
+        const corpusId = document.getElementById('corpusId').value;
+
+        // Загружаем содержимое файла с сервера используя существующий эндпоинт
+        const response = await apiFetch(`${BASE_URL}/document?corpus_id=${encodeURIComponent(corpusId)}&document_id=${encodeURIComponent(fileId)}`, {
+            method: 'GET'
+        });
+
+        if (!response.ok) {
+            throw new Error(`Ошибка загрузки файла: ${response.status}`);
+        }
+
+        const content = await response.text();
+
+        // Отображаем содержимое файла
+        modalBody.innerHTML = `
+            <div style="white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.5; padding: 15px; background-color: #f8f9fa; border-radius: 5px; max-height: 60vh; overflow-y: auto;">
+                ${escapeHtml(content)}
+            </div>
+        `;
+
+    } catch (error) {
+        console.error('Error loading file content:', error);
+        modalBody.innerHTML = `
+            <div class="alert alert-danger">
+                <h5>Ошибка загрузки</h5>
+                <p>${error.message}</p>
+                <p class="mb-0 small">Возможно, файл не найден или произошла ошибка на сервере.</p>
+            </div>
+        `;
+    }
+}
+
+// Функция для экранирования HTML символов
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Toggle search mode labels
+const searchModeToggle = document.getElementById('searchModeToggle');
+const modeLabel1 = document.getElementById('modeLabel1');
+const modeLabel2 = document.getElementById('modeLabel2');
+
+searchModeToggle.addEventListener('change', function () {
+    if (this.checked) {
+        modeLabel1.classList.remove('active');
+        modeLabel2.classList.add('active');
+    } else {
+        modeLabel1.classList.add('active');
+        modeLabel2.classList.remove('active');
+    }
+});

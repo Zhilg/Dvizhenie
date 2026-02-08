@@ -47,7 +47,7 @@
         </div>
         
         <div class="section">
-            <h3>📊 История задач кластеризации</h3>
+            <h3>📊 Выберите по какой таксономии классифицировать</h3>
             <div id="jobHistory" class="job-history"></div>
         </div>
 
@@ -70,15 +70,21 @@
         </div>
 
         <div id="results" class="results">
-            <h2>Результаты классификации</h2>
+            <h2>📊 Результаты классификации</h2>
             <div class="table-container">
                 <table id="correspondenceTable">
                     <thead>
                         <tr>
-                            <th>Файл</th>
-                            <th colspan="5">Классы разработчика (топ-5)</th>
-                            <th colspan="5">Классы оболочки (топ-5)</th>
-                            <th>Совпадения</th>
+                            <th rowspan="2" class="file-column">Файл</th>
+                            <th rowspan="2" class="label-header">Тип</th>
+                            <th colspan="5" class="classes-header">Классы (топ-5)</th>
+                        </tr>
+                        <tr>
+                            <th>1</th>
+                            <th>2</th>
+                            <th>3</th>
+                            <th>4</th>
+                            <th>5</th>
                         </tr>
                     </thead>
                     <tbody id="tableBody"></tbody>
@@ -87,6 +93,31 @@
         </div>
     </div>
 
+    <!-- Модальное окно для просмотра содержимого файла -->
+    <div id="fileModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeFileModal()">&times;</span>
+            <div class="modal-body">
+                <div class="modal-text-content">
+                    <h3 id="modalFileName">Содержимое файла</h3>
+                    <div id="modalFileContent" class="file-content-text"></div>
+                </div>
+                <div class="modal-classes-panel">
+                    <h4>📋 Классификация</h4>
+                    <div class="classes-section">
+                        <h5>Мнение экспертов</h5>
+                        <div id="modalExpertClasses" class="classes-list expert-classes"></div>
+                    </div>
+                    <div class="classes-section">
+                        <h5>Классы разработчика</h5>
+                        <div id="modalDeveloperClasses" class="classes-list developer-classes"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../assets/js/backend-selector.js"></script>
     <script type="text/javascript" src="../assets/js/classification.js"></script>
 </body>
 </html>

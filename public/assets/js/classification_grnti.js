@@ -10,7 +10,7 @@ let currentResults = null;
 async function loadModels() {
     try {
         showStatus('🔄 Загрузка моделей...', 'processing');
-        const response = await fetch('/api/models');
+        const response = await apiFetch('/api/models');
         
         if (!response.ok) {
             throw new Error('Ошибка загрузки моделей');
@@ -43,7 +43,7 @@ function updateModelSelect() {
 async function loadClusteringHistory() {
     try {
         showStatus('🔄 Загрузка истории кластеризации...', 'processing');
-        const response = await fetch('/api/clusterization/history');
+        const response = await apiFetch('/api/clusterization/history');
         
         if (!response.ok) throw new Error('Ошибка загрузки истории');
         
@@ -110,7 +110,7 @@ async function startGrntiClassification() {
         const formData = new FormData();
         Array.from(files).forEach(file => formData.append('files', file));
 
-        const response = await fetch('/api/classification/grnti', {
+        const response = await apiFetch('/api/classification/grnti', {
             method: 'POST',
             headers: {
                 'x-model-id': modelId,
@@ -145,7 +145,7 @@ function startStatusChecking() {
     
     checkInterval = setInterval(async () => {
         try {
-            const response = await fetch(`/api/jobs/${currentJobId}`);
+            const response = await apiFetch(`/api/jobs/${currentJobId}`);
             if (!response.ok) throw new Error('Status check failed');
             
             const status = await response.json();
@@ -180,7 +180,7 @@ function updateProgress(status) {
 // Получение и отображение результатов
 async function fetchResults(resultUrl) {
     try {
-                const response = await fetch("/api/result", {
+                const response = await apiFetch("/api/result", {
                 method: "GET",
                 headers: {
                     "Content-Type": "application/json",
@@ -386,7 +386,7 @@ function saveExpertConfidence(fileName, predictionIndex, confidence) {
 // Сохранение всех экспертных оценок
 async function saveAllExpertOpinions() {
     try {
-        const response = await fetch('/api/save-expert-opinions', {
+        const response = await apiFetch('/api/save-expert-opinions', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -545,8 +545,8 @@ function formatBytes(bytes) {
 async function loadJobHistory(type = 'all') {
     try {
         const url = type === 'all' ? '/api/jobs/history' : `/api/jobs/history?type=${type}`;
-        const response = await fetch(url);
-        
+        const response = await apiFetch(url);
+
         if (response.ok) {
             jobHistory = await response.json();
             displayJobHistory();
@@ -583,7 +583,7 @@ function displayJobHistory() {
 // Загрузка справочника кодов ГРНТИ для отображения расшифровок
 async function loadGrntiCodes() {
     try {
-        const response = await fetch('/api/grnti-codes');
+        const response = await apiFetch('/api/grnti-codes');
         if (response.ok) {
             const data = await response.json();
             window.grntiCodesData = data; // Сохраняем в глобальном объекте window для доступа из других функций
@@ -801,7 +801,7 @@ function saveExpertPercentage(fileName, percentage) {
 // Отправка всех экспертных оценок на сервер для сохранения (дублирующая функция)
 async function saveAllExpertOpinions() {
     try {
-        const response = await fetch('/api/save-expert-opinions', {
+        const response = await apiFetch('/api/save-expert-opinions', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

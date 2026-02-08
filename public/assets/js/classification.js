@@ -8,7 +8,7 @@ let jobHistory = []; // История выполненных заданий к�
 async function loadModels() {
     try {
         showStatus('🔄 Загрузка моделей...', 'processing');
-        const response = await fetch('/api/models');
+        const response = await apiFetch('/api/models');
 
         if (!response.ok) {
             throw new Error('Ошибка загрузки моделей');
@@ -65,7 +65,7 @@ async function loadJobHistory() {
  try {
      showStatus('🔄 Загрузка истории кластеризации...', 'processing');
 
-     const response = await fetch('/api/clusterization/history');
+     const response = await apiFetch('/api/clusterization/history');
 
      if (!response.ok) {
          throw new Error('Ошибка загрузки истории кластеризации');
@@ -179,7 +179,7 @@ async function checkJobStatus(jobId) {
 try {
 showStatus('🔄 Проверка статуса...', 'processing');
 
-const response = await fetch(`/api/jobs/${jobId}`);
+const response = await apiFetch(`/api/jobs/${jobId}`);
 if (!response.ok) throw new Error('Ошибка проверки статуса');
 
 const status = await response.json();
@@ -203,7 +203,7 @@ showStatus('❌ Ошибка проверки статуса: ' + error.message,
 // Просмотр детальной информации о задании кластеризации
 async function viewJobDetails(jobId) {
 try {
-    const response = await fetch(`/api/jobs/${jobId}/details`);
+    const response = await apiFetch(`/api/jobs/${jobId}/details`);
     const jobDetails = await response.json();
 
     // Показываем модальное окно с деталями задания
@@ -264,7 +264,7 @@ async function startClassification() {
         const modelId = document.getElementById('modelSelect').value;
         const ttlHours = document.getElementById('ttlHours').value;
 
-        const response = await fetch('/api/classification', {
+        const response = await apiFetch('/api/classification', {
             method: 'POST',
             headers: {
                 'x-model-id': modelId,
@@ -299,7 +299,7 @@ function startStatusChecking() {
 
     checkInterval = setInterval(async () => {
         try {
-            const response = await fetch(`/api/jobs/${currentJobId}`);
+            const response = await apiFetch(`/api/jobs/${currentJobId}`);
             const status = await response.json();
 
             if (status.status === 'processing') {
@@ -339,11 +339,12 @@ function updateProgress(status) {
 // Загрузка и отображение результатов классификации
 async function fetchResults(resultUrl) {
     try {
-                const response = await fetch("/api/result", {
+                const response = await apiFetch("/api/result", {
                 method: "GET",
                 headers: {
                     "Content-Type": "application/json",
-                    "x-result-url": resultUrl
+                    "x-result-url": resultUrl,
+                    "x-job-id": currentJobId
                 },
             });
         if (!response.ok) throw new Error('Failed to fetch results');
@@ -366,52 +367,52 @@ function displayResults(results) {
     tableBody.innerHTML = '';
 
     if (!results.correspondence_table || !results.correspondence_table.files) {
-        tableBody.innerHTML = '<tr><td colspan="12">Нет данных для отображения</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7">Нет данных для отображения</td></tr>';
         return;
     }
 
     const clusterNames = results.correspondence_table.cluster_names || {};
+    const corpusId = results.corpus_id || 'unknown';
+
+    // Отладочная информация
+    console.log('Results object:', results);
+    console.log('Extracted corpus_id:', corpusId);
+
+    // Сохраняем corpus_id глобально для использования в модальном окне
+    window.currentCorpusId = corpusId;
 
     results.correspondence_table.files.forEach(file => {
         const devClasses = file.d || [];
-        // Расчет классов оболочки на основе референсной близости
-        const shellClasses = calculateShellClasses(devClasses, clusterNames);
 
+        // Первая строка - Мнение экспертов (пустая)
         const row1 = document.createElement('tr');
-        const row2 = document.createElement('tr');
-
-        // Первая строка - классы разработчика (developer classes)
         row1.innerHTML = `
-            <td rowspan="2" class="file-info">${file.f}</td>
+            <td rowspan="2" class="file-column">
+                <span class="file-name" onclick="openFileModal('${file.f}', ${JSON.stringify(devClasses).replace(/"/g, '&quot;')}, ${JSON.stringify(clusterNames).replace(/"/g, '&quot;')}, '${corpusId}')">${file.f}</span>
+            </td>
+            <td class="label-column">Мнение экспертов</td>
         `;
 
-        devClasses.forEach(([classId, similarity]) => {
-            row1.innerHTML += `<td>${clusterNames[classId] || classId}<br>${similarity.toFixed(3)}</td>`;
-        });
-
-        for (let i = devClasses.length; i < 5; i++) {
-            row1.innerHTML += '<td>-</td>';
+        // 5 пустых ячеек для мнения экспертов
+        for (let i = 0; i < 5; i++) {
+            row1.innerHTML += '<td class="expert-cells"></td>';
         }
 
-        row1.innerHTML += `<td rowspan="2" id="matches-${file.f}"></td>`;
+        // Вторая строка - Классы разработчика (топ-5)
+        const row2 = document.createElement('tr');
+        row2.innerHTML = '<td class="label-column">Классы разработчика</td>';
 
-        // Вторая строка - классы оболочки (shell classes)
-        shellClasses.forEach((shellClass, index) => {
-            const isMatch = devClasses.some(([devId]) => devId === shellClass.classId);
-            const cellClass = isMatch ? 'match' : '';
-            row2.innerHTML += `<td class="${cellClass}">${shellClass.name}<br>${shellClass.similarity.toFixed(3)}</td>`;
+        devClasses.forEach(([classId, similarity]) => {
+            row2.innerHTML += `<td class="developer-cells">${clusterNames[classId] || classId}<br><strong>${similarity.toFixed(3)}</strong></td>`;
         });
 
-        for (let i = shellClasses.length; i < 5; i++) {
-            row2.innerHTML += '<td>-</td>';
+        // Дополняем до 5 ячеек, если меньше
+        for (let i = devClasses.length; i < 5; i++) {
+            row2.innerHTML += '<td class="developer-cells">-</td>';
         }
 
         tableBody.appendChild(row1);
         tableBody.appendChild(row2);
-
-        // Добавляем информацию о найденных совпадениях
-        const matches = findMatches(devClasses, shellClasses, clusterNames);
-        document.getElementById(`matches-${file.f}`).innerHTML = matches.join('<br>');
     });
 
     document.getElementById('results').style.display = 'block';
@@ -460,6 +461,79 @@ function formatBytes(bytes, decimals = 2) {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
+
+// Функция открытия модального окна с содержимым файла
+async function openFileModal(fileName, devClasses, clusterNames, corpusId) {
+    const modal = document.getElementById('fileModal');
+    const modalFileName = document.getElementById('modalFileName');
+    const modalFileContent = document.getElementById('modalFileContent');
+    const modalExpertClasses = document.getElementById('modalExpertClasses');
+    const modalDeveloperClasses = document.getElementById('modalDeveloperClasses');
+
+    // Устанавливаем имя файла
+    modalFileName.textContent = `📄 ${fileName}`;
+
+    // Загружаем содержимое файла
+    try {
+        modalFileContent.innerHTML = '<div style="text-align: center; padding: 40px;">🔄 Загрузка содержимого файла...</div>';
+
+        // Используем переданный corpus_id
+        const response = await apiFetch(`/api/document?corpus_id=${encodeURIComponent(corpusId)}&document_id=${encodeURIComponent(fileName)}`);
+
+        if (!response.ok) {
+            throw new Error('Не удалось загрузить файл');
+        }
+
+        const content = await response.text();
+        modalFileContent.textContent = content;
+    } catch (error) {
+        console.error('Error loading file:', error);
+        modalFileContent.innerHTML = `<div style="color: #dc3545; padding: 20px;">❌ Ошибка загрузки файла: ${error.message}</div>`;
+    }
+
+    // Заполняем мнение экспертов (пока пусто)
+    modalExpertClasses.innerHTML = '<div class="class-item-empty">Мнение экспертов пока не добавлено</div>';
+
+    // Заполняем классы разработчика
+    modalDeveloperClasses.innerHTML = '';
+    if (devClasses && devClasses.length > 0) {
+        devClasses.forEach(([classId, similarity]) => {
+            const div = document.createElement('div');
+            div.className = 'class-item';
+            div.innerHTML = `
+                <strong>${clusterNames[classId] || classId}</strong>
+                <div style="font-size: 12px; color: #666; margin-top: 4px;">Сходство: ${similarity.toFixed(3)}</div>
+            `;
+            modalDeveloperClasses.appendChild(div);
+        });
+    } else {
+        modalDeveloperClasses.innerHTML = '<div class="class-item-empty">Нет данных классификации</div>';
+    }
+
+    // Показываем модальное окно
+    modal.style.display = 'block';
+}
+
+// Функция закрытия модального окна
+function closeFileModal() {
+    const modal = document.getElementById('fileModal');
+    modal.style.display = 'none';
+}
+
+// Закрытие модального окна при клике вне его
+window.onclick = function(event) {
+    const modal = document.getElementById('fileModal');
+    if (event.target === modal) {
+        closeFileModal();
+    }
+}
+
+// Закрытие модального окна по нажатию Escape
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeFileModal();
+    }
+});
 
 // Инициализация приложения после загрузки DOM
 document.addEventListener('DOMContentLoaded', () => {

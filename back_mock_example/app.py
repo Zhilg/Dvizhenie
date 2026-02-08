@@ -242,7 +242,7 @@ def classification():
         'corpus_path': corpus_path,
         'model_id': model_id,
         'result': {
-            "folder": "C:/documents/new_documents",
+            "folder": corpus_path,
             "data": {
                 "id": "root",
                 "name": "Все кластеры",

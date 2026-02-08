@@ -30,7 +30,7 @@ function setupEventListeners() {
 // Загрузка списка доступных моделей с сервера
 async function loadModels() {
     try {
-        const response = await fetch(`${BASE_URL}/models`);
+        const response = await apiFetch(`${BASE_URL}/models`);
         if (!response.ok) throw new Error(await response.text());
 
         availableModels = await response.json();
@@ -108,7 +108,7 @@ async function uploadDocuments() {
         console.log('ttlHours:', ttlHours || '0');
         console.log('Files count:', folderInput.files.length);
         
-        const response = await fetch(`${BASE_URL}/semantic/upload`, {
+        const response = await apiFetch(`${BASE_URL}/semantic/upload`, {
             method: 'POST',
             headers: {
                 'x-model-id': modelSelect.value, // ID выбранной модели
@@ -162,7 +162,7 @@ async function checkUploadStatus() {
 
     try {
         // Use original API endpoint - server-side polling is transparent to client
-        const response = await fetch(`${BASE_URL}/jobs/${currentJobId}`);
+        const response = await apiFetch(`${BASE_URL}/jobs/${currentJobId}`);
         if (!response.ok) throw new Error(await response.text());
 
         const status = await response.json();
@@ -214,7 +214,7 @@ async function getUploadResults(resultUrl, corpusName) {
     try {
         console.log("Making request to /api/result with resultUrl:", resultUrl);
 
-        const response = await fetch("/api/result", {
+        const response = await apiFetch("/api/result", {
             method: "GET",
             headers: {
                 "Content-Type": "application/json",

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Семантический поиск по документам</title>
+    <title>Смысловой поиск</title>
     <link href="../assets/css/bootstrap.min.css" rel="stylesheet">
     <link href="../assets/css/bootstrap-icons.css" rel="stylesheet">
     <style>
@@ -19,13 +19,96 @@
             align-items: center;
             gap: 5px;
         }
+
+        /* Toggle Switch Styles */
+        .search-mode-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .search-mode-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: white;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            min-width: 180px;
+            text-align: center;
+        }
+
+        .search-mode-label.active {
+            font-size: 16px;
+            transform: scale(1.05);
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 70px;
+            height: 34px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.3);
+            transition: 0.4s;
+            border-radius: 34px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: 0.4s;
+            border-radius: 50%;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(36px);
+        }
+
+        .toggle-slider:hover {
+            background-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .toggle-switch input:checked + .toggle-slider:hover {
+            background-color: rgba(255, 255, 255, 0.6);
+        }
     </style>
 </head>
 <body>
     <a href="/" class="home-btn">🏠 Домой</a>
     <div class="container main-container mt-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1>Семантический поиск по документам</h1>
+            <h1>Смысловой поиск</h1>
             <a href="/upload" class="btn btn-primary">
                 Загрузить корпус
             </a>
@@ -63,9 +146,22 @@
 
                 <div id="corpusInfo" class="alert alert-info py-2 small"></div>
 
+                <div class="search-mode-container">
+                    <span class="search-mode-label active" id="modeLabel1">
+                        Поиск в хранилище похожих по смыслу текстов
+                    </span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="searchModeToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="search-mode-label" id="modeLabel2">
+                        Смысловой поиск по короткому запросу
+                    </span>
+                </div>
+
                 <div class="mb-3">
                     <label for="searchQuery" class="form-label">Поисковый запрос</label>
-                    <textarea class="form-control" id="searchQuery" rows="3" 
+                    <textarea class="form-control" id="searchQuery" rows="3"
                               placeholder="Введите ваш запрос для семантического поиска..."></textarea>
                 </div>
 
@@ -111,8 +207,31 @@
         </div>
     </div>
 
+    <div class="modal fade" id="fileContentModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="fileContentModalTitle">Содержимое файла</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="fileContentModalBody" style="max-height: 70vh; overflow-y: auto;">
+                        <div class="text-center py-5">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Загрузка...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="../assets/js/bootstrap.bundle.min.js"></script>
+    <script src="../assets/js/backend-selector.js"></script>
     <script src="../assets/js/search.js"></script>
 </body>
 </html>

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Оценка качества классификации</title>
+    <link rel="stylesheet" href="../assets/css/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --accent-color: #4895ef;
+            --light-color: #f8f9fa;
+            --dark-color: #212529;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7fa;
+            color: var(--dark-color);
+            line-height: 1.6;
+            padding: 0;
+            margin: 0;
+        }
+
+        .home-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: white;
+            color: var(--primary-color);
+            border: 2px solid var(--primary-color);
+            border-radius: 8px;
+            padding: 10px 20px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        .home-btn:hover {
+            background: var(--primary-color);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            padding-top: 4rem;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+            font-size: 2.5rem;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #6c757d;
+            margin-bottom: 3rem;
+            font-size: 1.1rem;
+        }
+
+        .button-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .nav-button {
+            display: block;
+            background: white;
+            border-radius: 12px;
+            padding: 2.5rem;
+            text-decoration: none;
+            color: var(--dark-color);
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e9ecef;
+            text-align: center;
+        }
+
+        .nav-button:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            border-color: var(--accent-color);
+        }
+
+        .button-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        .nav-button h2 {
+            margin: 0 0 0.5rem;
+            color: var(--secondary-color);
+            font-size: 1.5rem;
+        }
+
+        .nav-button p {
+            margin: 0;
+            color: #6c757d;
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+
+        .info-section {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e9ecef;
+        }
+
+        .info-section h3 {
+            color: var(--primary-color);
+            margin-top: 0;
+            margin-bottom: 1rem;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .info-item {
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid var(--accent-color);
+        }
+
+        .info-item h4 {
+            margin: 0 0 0.5rem;
+            color: var(--secondary-color);
+            font-size: 1.1rem;
+        }
+
+        .info-item p {
+            margin: 0;
+            color: #6c757d;
+            font-size: 0.95rem;
+        }
+
+        @media (max-width: 768px) {
+            .button-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .container {
+                padding: 1rem;
+                padding-top: 4rem;
+            }
+
+            h1 {
+                font-size: 2rem;
+                margin-bottom: 0.5rem;
+            }
+
+            .subtitle {
+                font-size: 1rem;
+                margin-bottom: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="home-btn">🏠 Домой</a>
+
+    <div class="container">
+        <h1>📊 Оценка качества классификации</h1>
+        <p class="subtitle">Выберите метрику для оценки результатов классификации текстов</p>
+
+        <div class="button-grid">
+            <a href="/evaluation/precision" class="nav-button">
+                <div class="button-icon">🎯</div>
+                <h2>Оценка точности (Precision)</h2>
+            </a>
+
+            <a href="/evaluation/recall" class="nav-button">
+                <div class="button-icon">📈</div>
+                <h2>Оценка полноты (Recall)</h2>
+            </a>
+        </div>
+
+        <div class="info-section">
+            <h3>📝 О метриках оценки качества</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <h4>Точность (Precision)</h4>
+                    <p>Показывает долю истинных совпадений среди всех найденных системой.</p>
+                </div>
+
+                <div class="info-item">
+                    <h4>Полнота (Recall)</h4>
+                    <p>Показывает долю найденных истинных совпадений среди всех существующих."</p>
+                </div>
+
+                <div class="info-item">
+                    <h4>Применение метрик</h4>
+                    <p>Обе метрики используются для оценки качества классификации текстов по кластерам и по рубрикам ГРНТИ.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

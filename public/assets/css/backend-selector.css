@@ -1,0 +1,192 @@
+/* Стили для селектора выбора компании бекэнда */
+
+.backend-selector-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    padding: 12px 20px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.backend-selector {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: white;
+}
+
+.backend-selector label {
+    font-weight: 600;
+    font-size: 14px;
+    margin: 0;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.backend-select {
+    padding: 6px 12px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    background-color: rgba(255, 255, 255, 0.95);
+    color: #333;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    outline: none;
+    min-width: 120px;
+}
+
+.backend-select:hover {
+    background-color: white;
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.backend-select:focus {
+    border-color: rgba(255, 255, 255, 0.8);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
+}
+
+.backend-select option {
+    padding: 8px;
+    font-weight: 600;
+}
+
+.backend-indicator {
+    display: inline-flex;
+    align-items: center;
+    color: #4ade80;
+    font-size: 12px;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.backend-indicator i {
+    filter: drop-shadow(0 0 3px currentColor);
+}
+
+.backend-indicator.pulse {
+    animation: indicatorPulse 0.6s ease-out;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+@keyframes indicatorPulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.3);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Уведомление о переключении */
+.backend-notification {
+    position: fixed;
+    top: 100px;
+    right: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 15px 25px;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    z-index: 1001;
+    font-weight: 600;
+    font-size: 14px;
+    opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.3s ease-out;
+}
+
+.backend-notification.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.backend-notification::before {
+    content: '✓';
+    display: inline-block;
+    margin-right: 10px;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+/* Адаптивные стили для мобильных устройств */
+@media (max-width: 768px) {
+    .backend-selector-container {
+        top: 10px;
+        right: 10px;
+        padding: 10px 15px;
+    }
+
+    .backend-selector {
+        gap: 8px;
+    }
+
+    .backend-selector label {
+        font-size: 12px;
+    }
+
+    .backend-select {
+        padding: 5px 10px;
+        font-size: 12px;
+        min-width: 100px;
+    }
+
+    .backend-notification {
+        top: 70px;
+        right: 10px;
+        padding: 12px 20px;
+        font-size: 13px;
+    }
+}
+
+/* Темная тема (опционально) */
+@media (prefers-color-scheme: dark) {
+    .backend-select {
+        background-color: rgba(255, 255, 255, 0.9);
+        color: #1a1a1a;
+    }
+
+    .backend-select:hover {
+        background-color: white;
+    }
+}
+
+/* Состояния для разных компаний (опционально) */
+.backend-selector[data-backend="cnii"] {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.backend-selector[data-backend="peredovie"] {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.backend-selector[data-backend="kazan"] {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
