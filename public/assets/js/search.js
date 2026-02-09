@@ -248,6 +248,8 @@ async function searchDocuments() {
 
 function displaySearchResults(results) {
     const searchResults = document.getElementById('searchResults');
+    const searchQuery = document.getElementById('searchQuery').value;
+    
     let html = `
         <div class="table-responsive">
             <table class="table table-striped table-hover">
@@ -256,13 +258,15 @@ function displaySearchResults(results) {
                         <th style="width: 25%; min-width: 200px;">Документ</th>
                         <th style="width: 60%;">Фрагмент текста</th>
                         <th style="width: 15%; min-width: 100px;">Сходство</th>
+                        <th style="width: 15%; min-width: 150px;">Референсное значение</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
 
     // Формирование строк таблицы для каждого результата
-    results.results.forEach(result => {
+    results.results.forEach((result, index) => {
+        const buttonId = `ref-btn-${index}`;
         html += `
             <tr>
                 <td>
@@ -274,6 +278,9 @@ function displaySearchResults(results) {
                 <td class="preview-text">${result.preview || ''}</td>
                 <td>
                     <span class="similarity-badge">${result.score.toFixed(4)}</span>
+                </td>
+                <td id="${buttonId}">
+                   <button class="btn btn-sm btn-outline-primary" onclick="getReferenceValue('${escapeForAttribute(result.preview || '')}', '${escapeForAttribute(searchQuery)}', '${buttonId}')">Посчитать</button>
                 </td>
             </tr>
         `;
@@ -354,6 +361,76 @@ function displaySearchResults(results) {
 
     // Прокрутка страницы к результатам
     document.getElementById('resultsContainer').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function getReferenceValue(fragment, query, buttonId) {
+    const buttonElement = document.getElementById(buttonId);
+    
+    // Показываем индикатор загрузки
+    buttonElement.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Загрузка...';
+    
+    try {
+        const corpusId = document.getElementById('corpusId').value;
+        const corpusInfo = await getCorpusInfo(corpusId);
+        
+        if (!corpusInfo || !corpusInfo.model) {
+            throw new Error('Не удалось определить модель для выбранного корпуса');
+        }
+        
+        // Отправка запроса на вычисление косинусной близости
+        const response = await apiFetch(`${BASE_URL}/reference/similarity`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json; charset=utf-8',
+            },
+            body: JSON.stringify({
+                text1: fragment,
+                text2: query,
+                modelId: corpusInfo.model
+            })
+        });
+
+        if (!response.ok) throw new Error(await response.text());
+
+        const result = await response.json();
+        
+        // Заменяем кнопку на значение косинусной близости
+        buttonElement.innerHTML = `<span class="similarity-badge">${result.similarity.toFixed(4)}</span>`;
+
+    } catch (error) {
+        console.error("Reference value error:", error);
+        // Показываем ошибку вместо кнопки
+        buttonElement.innerHTML = `<span class="text-danger small">Ошибка</span>`;
+        alert('Ошибка вычисления референсного значения: ' + error.message);
+    }
+}
+
+// Вспомогательная функция для получения информации о корпусе
+async function getCorpusInfo(corpusId) {
+    try {
+        const response = await apiFetch('/corpus-history');
+        if (response.ok) {
+            const history = await response.json();
+            return history.find(item => item.id === corpusId);
+        }
+    } catch (error) {
+        console.warn('Failed to get corpus info from server, using localStorage fallback');
+    }
+    
+    // Fallback to localStorage if server fails
+    const history = JSON.parse(localStorage.getItem('corpusHistory')) || [];
+    return history.find(item => item.id === corpusId);
+}
+
+// Функция для экранирования атрибутов HTML
+function escapeForAttribute(text) {
+    if (!text) return '';
+    return text
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '"')
+        .replace(/\n/g, ' ')
+        .replace(/\r/g, '');
 }
 
 // Отображение модального окна с историей корпусов

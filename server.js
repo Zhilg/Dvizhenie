@@ -188,6 +188,44 @@ app.post('/api/similarity', express.json(), async (req, res) => {
   }
 });
 
+const getReferenceEmbedding = async (text, modelId, backendUrl) => {
+  const response = await axios.post(`${backendUrl}/embedding`, text, {
+    headers: {
+      'Content-Type': 'text/plain',
+      'x-model-id': modelId
+    },
+  });
+  return response.data;
+};
+
+app.post('/reference/similarity', express.json(), async (req, res) => {
+  try {
+    const { text1, text2, modelId = config.defaults.modelId } = req.body;
+
+    if (!text1 || !text2) {
+      return res.status(400).json({ error: 'Both texts are required' });
+    }
+
+    const backendUrl = 'http://back-service-cnii:5038/api';
+    const [result1, result2] = await Promise.all([
+      getEmbedding(text1, modelId, backendUrl),
+      getEmbedding(text2, modelId, backendUrl)
+    ]);
+
+    const cosSim = cosineSimilarity(result1.embeddings, result2.embeddings);
+    const angularDist = Math.acos(Math.min(Math.max(cosSim, -1), 1));
+
+    res.json({
+      cosine_similarity: cosSim,
+      angular_similarity_radians: angularDist,
+    });
+
+  } catch (error) {
+    handleProxyError(error, 'Similarity', res);
+  }
+});
+
+
 // Загрузка файлов
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {

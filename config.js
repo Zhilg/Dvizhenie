@@ -12,6 +12,7 @@ const config = {
 
   // URLs всех трех бекэндов
   BACKENDS: {
+    mock: 'http://back-service:3000/api',
     cnii: process.env.BACKEND_CNII_URL || 'http://back-service-cnii:5038/api',
     peredovie: process.env.BACKEND_PEREDOVIE_URL || 'http://back-service-peredovie:3001/api',
     kazan: process.env.BACKEND_KAZAN_URL || 'http://back-service-kazan:3002/api'
