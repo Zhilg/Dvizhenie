@@ -13,11 +13,19 @@
 Технические характеристики
 ===========================================================================
 МГУ-270:
+
 CPU 2xAMD EPYC 7742 64-Core Processor
+
 GPU 8xNVIDIA A100-SXM4-80GB
+
 RAM 2ТБ
+
 Драйверы:
-NVIDIA-SMI 535.216.03             Driver Version: 535.216.03   CUDA Version: 12.2
+NVIDIA-SMI 535.216.03   
+
+Driver Version: 535.216.03   
+
+CUDA Version: 12.2
 
 
 Наш большой сервер:
