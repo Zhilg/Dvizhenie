@@ -33,6 +33,12 @@ CUDA Version: 12.2
 
 
 Драйверы:
+CPU: Intel Xeon 6346, 2 шт
+
+GPU: Nvidia Tesla A100, 1 шт
+
+Оперативная память 2 Тбайт 
+
 NVIDIA-SMI 580.95.05  
 
 Driver Version: 580.95.05
