@@ -12,7 +12,7 @@ const config = {
 
   // URLs всех трех бекэндов
   BACKENDS: {
-    mock: 'http://back-service:3000/api',
+    BACK: 'http://back-service:3000/api',
   },
 
   // Бэкенд по умолчанию (можно менять через API или переменную окружения)
