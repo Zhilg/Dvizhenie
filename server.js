@@ -1001,6 +1001,7 @@ app.get('/api/document', (req, res) => {
 
 app.get('/api/models', async (req, res) => {
   try {
+    console.log(getBackendURL(req));
     const models = await axios.get(`${getBackendURL(req)}/models`);
     res.json(models.data);
   } catch (error) {

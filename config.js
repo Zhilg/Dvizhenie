@@ -16,7 +16,7 @@ const config = {
   },
 
   // Бэкенд по умолчанию (можно менять через API или переменную окружения)
-  DEFAULT_BACKEND: process.env.DEFAULT_BACKEND || 'cnii',
+  DEFAULT_BACKEND: process.env.DEFAULT_BACKEND || 'BACK',
 
   // URL бэкенд-сервиса (для обратной совместимости)
   get BACKEND_SERVICE_URL() {
