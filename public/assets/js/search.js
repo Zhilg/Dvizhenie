@@ -198,8 +198,11 @@ async function searchDocuments() {
         if (response.ok) {
             const history = await response.json();
             corpusInfo = history.find(item => item.id === corpusId);
+            console.log(corpusInfo);
         }
-    } catch (error) {
+    } 
+    
+    catch (error) {
         console.warn('Failed to get corpus info from server, using localStorage fallback');
     }
 

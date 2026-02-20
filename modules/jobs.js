@@ -232,6 +232,9 @@ class JobManager {
       const results = response.data;
       console.log('Получены результаты загрузки:', results);
 
+      // Сохраняем оригинальный путь корпуса ДО обновления job данных
+      const originalCorpusPath = job.corpus_path;
+      
       // Обновляем jobsDB с правильным corpus_path из результатов бэкенда
       const jobIndex = this.jobsDB.jobs.findIndex(j => j.job_id === jobId);
       if (jobIndex !== -1 && results.corpus_path) {
@@ -240,8 +243,11 @@ class JobManager {
       }
 
       // Обновляем количество файлов в корпусе
+      // Используем оригинальный путь для поиска в БД
+      const corpusPathToUpdate = originalCorpusPath || `/${job.corpusId}`;
+      console.log('Используем путь для обновления БД:', corpusPathToUpdate);
       const updated = await this.corpusDB.updateCorpusFileCount(
-        `/${job.corpus_path?.replace('/', '') || job.corpusId}`,
+        corpusPathToUpdate,
         results.corpus_id,
         results.file_count
       );

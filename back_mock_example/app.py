@@ -93,10 +93,15 @@ def upload_corpus():
     # Generate a corpus_id that is different from corpus_path
     corpus_id = str(uuid.uuid4())
     
-    # Create upload result with the generated corpus_id and original corpus_path
+    # Для тестирования: возвращаем corpus_path с другим форматом
+    # Например, если прислан /abc-123, возвращаем /backend/abc-123
+    # Это имитирует реальное поведение бэкенда, который меняет путь
+    backend_corpus_path = f"/backend{corpus_path}"
+    
+    # Create upload result with the generated corpus_id and modified corpus_path
     upload_result = {
         "corpus_id": corpus_id,
-        "corpus_path": corpus_path,
+        "corpus_path": backend_corpus_path,
         "file_count": 30000,
         "index_stats": {
             "total_size_gb": 95.4
@@ -107,7 +112,8 @@ def upload_corpus():
         'status': 'processing',
         'type': 'upload',
         'progress': 0,
-        'corpus_path': corpus_path,
+        'corpus_path': corpus_path,  # Оригинальный путь
+        'backend_corpus_path': backend_corpus_path,  # Новый путь от бэкенда
         'model_id': model_id,
         'result': upload_result
     }
