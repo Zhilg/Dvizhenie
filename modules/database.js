@@ -111,6 +111,27 @@ class CorpusDatabase {
   }
 
   /**
+   * Находит корпус по ID или пути
+   * @param {string} corpusIdOrPath - ID корпуса или путь
+   * @returns {Object|null} найденный корпус или null
+   */
+  getCorpusByIdOrPath(corpusIdOrPath) {
+    // Сначала ищем по id
+    let corpus = this.data.corpora.find(c => c.id === corpusIdOrPath);
+    if (corpus) return corpus;
+    
+    // Потом ищем по corpus_path
+    corpus = this.data.corpora.find(c => c.corpus_path === corpusIdOrPath);
+    if (corpus) return corpus;
+    
+    // Также пробуем без начального слеша
+    corpus = this.data.corpora.find(c => c.corpus_path === `/${corpusIdOrPath}`);
+    if (corpus) return corpus;
+    
+    return null;
+  }
+
+  /**
    * Сохраняет корпус в базу данных
    * @param {Object} corpusData - данные корпуса
    * @returns {Promise<boolean>} успешность операции

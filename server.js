@@ -15,8 +15,8 @@ const app = express();
 
 // Инициализируем модули
 const corpusDB = new CorpusDatabase(config.SHARED_DATA_PATH);
-// JobManager теперь будет получать URL динамически
-const jobManager = new JobManager(null, corpusDB, config.SHARED_DATA_PATH);
+// JobManager с URL по умолчанию
+const jobManager = new JobManager(config.BACKEND_SERVICE_URL, corpusDB, config.SHARED_DATA_PATH);
 
 app.use(cors());
 app.use(morgan('dev'));
@@ -321,7 +321,7 @@ app.post('/api/semantic/upload', upload.array('files'), async (req, res) => {
     await corpusDB.saveCorpus(corpusInfo);
 
     // Запускаем опрос задачи загрузки
-    jobManager.startUploadJobPolling(response.data.job_id, corpusName, modelId, corpusId);
+    jobManager.startUploadJobPolling(response.data.job_id, corpusName, modelId, corpusId, getBackendURL(req));
 
     // Return job info for immediate response
     res.status(202).json({
@@ -345,10 +345,20 @@ app.post('/api/clusterization', async (req, res) => {
     const ttlHours = req.headers['x-ttl-hours'] || config.defaults.ttlHours;
     const corpusId = req.headers['x-corpus-id'];
 
+    // Маппинг ID корпуса
+    let backendCorpusId = corpusId;
+    if (corpusId) {
+      const corpus = corpusDB.getCorpusByIdOrPath(corpusId);
+      if (corpus && corpus.id && !corpus.id.startsWith('/')) {
+        backendCorpusId = corpus.id;
+        console.log(`[DEBUG] Маппинг корпуса (clusterization): локальный ID ${corpusId} -> ID бэкенда ${backendCorpusId}`);
+      }
+    }
+
     const response = await axios.post(`${getBackendURL(req)}/clusterization`, {}, {
       headers: {
-        'x-corpus-path': corpusId, // для старых версий
-        'x-corpus-id': corpusId, 
+        'x-corpus-path': backendCorpusId,
+        'x-corpus-id': backendCorpusId, 
         'x-model-id': modelId,
         'x-ttl-hours': ttlHours
       }
@@ -621,10 +631,31 @@ app.post('/api/evaluation/recall', async (req, res) => {
 // Поиск
 app.post('/api/semantic/search', express.text(), async (req, res) => {
   try {
+    // Получаем локальный ID корпуса из заголовка
+    const localCorpusId = req.headers['x-corpus-id'];
+    
+    // Ищем корпус в нашей базе данных для получения правильного ID
+    let backendCorpusId = localCorpusId;
+    if (localCorpusId) {
+      const corpus = corpusDB.getCorpusByIdOrPath(localCorpusId);
+      if (corpus) {
+        // Если корпус найден и уже обновлен бэкендом, используем его ID
+        // Проверяем, является ли сохраненный ID_backend ID (а не локальным путем)
+        if (corpus.id && !corpus.id.startsWith('/')) {
+          backendCorpusId = corpus.id;
+          console.log(`[DEBUG] Маппинг корпуса: локальный ID ${localCorpusId} -> ID бэкенда ${backendCorpusId}`);
+        } else {
+          console.log(`[DEBUG] Корпус ${localCorpusId} еще не обновлен бэкендом, используем локальный ID`);
+        }
+      } else {
+        console.log(`[DEBUG] Корпус ${localCorpusId} не найден в базе данных`);
+      }
+    }
+    
     const response = await axios.post(`${getBackendURL(req)}/semantic/search`, req.body, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
-        'x-corpus-id': req.headers['x-corpus-id'],
+        'x-corpus-id': backendCorpusId,
         'x-result-amount': req.headers['x-result-amount'] || config.defaults.resultAmount,
         'x-model-id': req.headers['x-model-id']
       }

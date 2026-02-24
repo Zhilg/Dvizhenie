@@ -9,12 +9,23 @@ const path = require('path');
 
 class JobManager {
   constructor(backendServiceUrl, corpusDB, sharedDataPath) {
-    this.backendServiceUrl = backendServiceUrl;
+    this.backendServiceUrl = backendServiceUrl || 'http://back-service:3000/api';
     this.corpusDB = corpusDB;
     this.sharedDataPath = sharedDataPath || './shared_data';
     this.jobsFilePath = path.join(this.sharedDataPath, 'jobs_database.json');
     this.jobsDB = { jobs: [] };
     this.pollQueue = new Map(); // Для отслеживания задач загрузки
+  }
+
+  /**
+   * Устанавливает URL бэкенд-сервиса динамически
+   * @param {string} url - URL бэкенд-сервиса
+   */
+  setBackendUrl(url) {
+    if (url) {
+      this.backendServiceUrl = url;
+      console.log(`[DEBUG] JobManager backend URL установлен: ${url}`);
+    }
   }
 
   /**
@@ -356,9 +367,15 @@ class JobManager {
   /**
    * Получает статус задачи
    * @param {string} jobId - ID задачи
+   * @param {string} backendUrl - URL бэкенд-сервиса (опционально)
    * @returns {Promise<Object>} статус задачи
    */
-  async getJobStatus(jobId) {
+  async getJobStatus(jobId, backendUrl) {
+    // Устанавливаем URL если передан
+    if (backendUrl) {
+      this.setBackendUrl(backendUrl);
+    }
+    
     try {
       const response = await axios.get(`${this.backendServiceUrl}/jobs/${jobId}`);
 
@@ -514,8 +531,13 @@ class JobManager {
    * @param {string} corpusName - имя корпуса
    * @param {string} modelId - ID модели
    * @param {string} corpusId - ID корпуса
+   * @param {string} backendUrl - URL бэкенд-сервиса
    */
-  startUploadJobPolling(jobId, corpusName, modelId, corpusId) {
+  startUploadJobPolling(jobId, corpusName, modelId, corpusId, backendUrl) {
+    // Устанавливаем URL перед запуском опроса
+    if (backendUrl) {
+      this.setBackendUrl(backendUrl);
+    }
     this.pollUploadJob(jobId, corpusName, modelId, corpusId);
   }
 
