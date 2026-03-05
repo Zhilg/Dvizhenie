@@ -1,11 +1,12 @@
-let currentJobId = null;
-let checkInterval = null;
 let availableModels = [];
+let availableCorpuses = [];
 let baseTrainingTime = null;
 let fineTuningStartTime = null;
 let timerInterval = null;
 let startTime = null;
 let trainingTime = null;
+let currentJobId = null;
+let statusCheckInterval = null;
 
 function startTimer() {
     startTime = new Date();
@@ -17,17 +18,16 @@ function stopTimer() {
         clearInterval(timerInterval);
         timerInterval = null;
         
-        // Сохраняем итоговое время
         const endTime = new Date();
         trainingTime = (endTime - startTime) / 1000;
-        return trainingTime; // Возвращаем время
+        return trainingTime;
     }
     return null;
 }
 
 function resetTimer() {
     stopTimer();
-    totalTrainingTime = null;
+    trainingTime = null;
     document.getElementById('timerDisplay').textContent = '00:00:00';
 }
 
@@ -62,6 +62,24 @@ async function loadModels() {
     }
 }
 
+// Загрузка истории корпусов из БД
+async function loadCorpusHistory() {
+    try {
+        const response = await apiFetch('/corpus-history');
+        
+        if (!response.ok) {
+            throw new Error('Ошибка загрузки истории корпусов');
+        }
+        
+        availableCorpuses = await response.json();
+        updateCorpusSelect();
+        
+    } catch (error) {
+        console.error('Error loading corpus history:', error);
+        showStatus('❌ Ошибка загрузки истории корпусов: ' + error.message, 'error');
+    }
+}
+
 function updateModelSelect() {
     const select = document.getElementById('baseModelSelect');
     select.innerHTML = '<option value="">Выберите модель...</option>';
@@ -71,43 +89,67 @@ function updateModelSelect() {
         option.value = model.model_id;
         option.textContent = model.model_name || model.model_id;
         option.dataset.dimension = model.dimension;
+        option.dataset.trainingTime = model.training_time;
         select.appendChild(option);
     });
     
-    // Показываем информацию о выбранной модели
     select.addEventListener('change', function() {
         const selectedOption = this.options[this.selectedIndex];
         if (selectedOption.value) {
             document.getElementById('modelInfo').style.display = 'block';
             document.getElementById('modelDetails').innerHTML = `
                 <p><strong>ID модели:</strong> ${selectedOption.value}</p>
-                <p><strong>Размерность:</strong> ${selectedOption.dataset.dimension}</p>
+                <p><strong>Размерность:</strong> ${selectedOption.dataset.dimension || 'N/A'}</p>
+                <p><strong>Время обучения:</strong> ${selectedOption.dataset.trainingTime ? 
+                    parseFloat(selectedOption.dataset.trainingTime).toFixed(1) + ' с' : 'N/A'}</p>
             `;
+            
+            if (selectedOption.dataset.trainingTime) {
+                baseTrainingTime = parseFloat(selectedOption.dataset.trainingTime);
+            }
         } else {
             document.getElementById('modelInfo').style.display = 'none';
+            baseTrainingTime = null;
         }
+        
+        checkStartButton();
     });
 }
 
-// Выбор папки с данными для дообучения
+function updateCorpusSelect() {
+    const select = document.getElementById('corpusSelect');
+    select.innerHTML = '<option value="">Выберите существующий корпус...</option>';
+    
+    availableCorpuses.forEach(corpus => {
+        const option = document.createElement('option');
+        option.value = corpus.id;
+        option.textContent = `${corpus.name} (${corpus.files || 0} файлов) - ${new Date(corpus.created_at).toLocaleDateString()}`;
+        option.dataset.files = corpus.files || 0;
+        option.dataset.path = corpus.corpus_path;
+        select.appendChild(option);
+    });
+    
+    select.addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        if (selectedOption.value) {
+            document.getElementById('corpusInfo').style.display = 'block';
+            document.getElementById('corpusDetails').innerHTML = `
+                <p><strong>ID корпуса:</strong> ${selectedOption.value}</p>
+                <p><strong>Путь:</strong> ${selectedOption.dataset.path || 'N/A'}</p>
+                <p><strong>Файлов:</strong> ${selectedOption.dataset.files || 0}</p>
+            `;
+        } else {
+            document.getElementById('corpusInfo').style.display = 'none';
+        }
+        
+        checkStartButton();
+    });
+}
+
+// Выбор папки с данными для нового корпуса
 function selectTrainingFolder() {
     document.getElementById('trainingDataInput').click();
 }
-
-document.getElementById('trainingDataInput').addEventListener('change', function(e) {
-    const files = e.target.files;
-    if (files.length === 0) return;
-    
-    document.getElementById('selectedTrainingFolder').textContent = 
-        `📁 Выбрано файлов: ${files.length}`;
-    
-    // Анализируем выбранные файлы
-    analyzeSelectedFiles(files);
-    
-    // Активируем кнопку запуска, если выбрана модель и файлы
-    const modelSelected = document.getElementById('baseModelSelect').value !== '';
-    document.getElementById('startBtn').disabled = !modelSelected || files.length === 0;
-});
 
 // Анализ выбранных файлов
 function analyzeSelectedFiles(files) {
@@ -124,19 +166,16 @@ function analyzeSelectedFiles(files) {
     Array.from(files).forEach(file => {
         totalSize += file.size;
         
-        // Статистика по размерам
         sizeStats.totalSize += file.size;
         if (file.size < sizeStats.minSize) sizeStats.minSize = file.size;
         if (file.size > sizeStats.maxSize) sizeStats.maxSize = file.size;
         
-        // Статистика по расширениям
         const ext = file.name.split('.').pop().toLowerCase();
         extensions[ext] = (extensions[ext] || 0) + 1;
     });
     
     sizeStats.avgSize = sizeStats.totalSize / sizeStats.count;
     
-    // Форматируем размеры для отображения
     const formatBytes = (bytes) => {
         if (bytes === 0) return '0 B';
         const k = 1024;
@@ -145,7 +184,6 @@ function analyzeSelectedFiles(files) {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
     
-    // Показываем статистику
     document.getElementById('fileStats').style.display = 'block';
     document.getElementById('fileStatsContent').innerHTML = `
         <p>Общий размер: <strong>${formatBytes(sizeStats.totalSize)}</strong></p>
@@ -157,15 +195,135 @@ function analyzeSelectedFiles(files) {
     `;
 }
 
+document.getElementById('trainingDataInput').addEventListener('change', function(e) {
+    const files = e.target.files;
+    if (files.length === 0) return;
+    
+    document.getElementById('corpusSelect').value = '';
+    document.getElementById('corpusInfo').style.display = 'none';
+    
+    document.getElementById('selectedTrainingFolder').textContent = 
+        `📁 Новый корпус: ${files.length} файлов`;
+    
+    analyzeSelectedFiles(files);
+    document.getElementById('trainingDataInput').dataset.isNewCorpus = 'true';
+    
+    checkStartButton();
+});
+
+function checkStartButton() {
+    const modelSelected = document.getElementById('baseModelSelect').value !== '';
+    const corpusSelected = document.getElementById('corpusSelect').value !== '';
+    const newFilesSelected = document.getElementById('trainingDataInput').files.length > 0;
+    
+    document.getElementById('startBtn').disabled = !(modelSelected && (corpusSelected || newFilesSelected));
+}
+
+// Функция для проверки статуса задачи
+async function checkJobStatus() {
+    if (!currentJobId) return;
+
+    try {
+        const response = await apiFetch(`/api/jobs/${currentJobId}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const status = await response.json();
+        
+        if (status.status === 'processing') {
+            const progress = status.progress || 0;
+            updateProgress(progress, `Дообучение: ${progress.toFixed(1)}%`);
+            
+            if (status.details) {
+                const details = `Файлов обработано: ${status.details.files_processed || 0}, Данных: ${formatFileSize(status.details.bytes_processed || 0)}`;
+                showStatus(details, 'info');
+            }
+            
+            // Сравнение времени выполнения
+            if (fineTuningStartTime && baseTrainingTime) {
+                const elapsedTime = (Date.now() - fineTuningStartTime) / 1000;
+                const timeComparison = baseTrainingTime / elapsedTime;
+                
+                let comparisonText = `Время дообучения: ${elapsedTime.toFixed(1)}с, `;
+                comparisonText += `Базовое обучение: ${baseTrainingTime.toFixed(1)}с, `;
+                comparisonText += `Ускорение: ${timeComparison.toFixed(1)}x`;
+                
+                document.getElementById('timeComparison').textContent = comparisonText;
+            }
+        } else if (status.status === 'completed') {
+            updateProgress(100, 'Дообучение завершено!');
+            await getFineTuningResults(status.result_url);
+        } else if (status.status === 'error') {
+            throw new Error(status.error || 'Ошибка выполнения задачи');
+        } else {
+            throw new Error(`Неизвестный статус: ${status.status}`);
+        }
+    } catch (error) {
+        console.error('Status check error:', error);
+        showStatus('❌ Ошибка проверки статуса: ' + error.message, 'error');
+        resetUI();
+    }
+}
+
+// Функция для получения результатов дообучения
+async function getFineTuningResults(resultUrl) {
+    try {
+        showStatus('📥 Получение результатов...', 'info');
+
+        const response = await apiFetch("/api/result", {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                "x-result-url": resultUrl
+            },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
+        const results = await response.json();
+        
+        trainingTime = stopTimer();
+        
+        // Сброс UI
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('startBtn').disabled = false;
+        
+        displayResults(results);
+        showStatus('✅ Дообучение завершено успешно!', 'success');
+        
+        // Обновляем историю корпусов, если был создан новый
+        if (results.corpus_id) {
+            await loadCorpusHistory();
+        }
+        
+        // Обновляем историю дообучения
+        loadFineTuningHistory();
+        
+    } catch (error) {
+        console.error('Error getting results:', error);
+        showStatus('❌ Ошибка получения результатов: ' + error.message, 'error');
+        resetUI();
+    }
+}
+
 // Запуск процесса дообучения
 async function startFineTuning() {
     resetTimer();
     const baseModelId = document.getElementById('baseModelSelect').value;
     const newModelName = document.getElementById('newModelName').value || `fine_tuned_${Date.now()}`;
+    
+    const existingCorpusId = document.getElementById('corpusSelect').value;
     const files = document.getElementById('trainingDataInput').files;
     
-    if (!baseModelId || files.length === 0) {
-        showStatus('❌ Выберите модель и данные для дообучения', 'error');
+    if (!baseModelId) {
+        showStatus('❌ Выберите базовую модель', 'error');
+        return;
+    }
+    
+    if (!existingCorpusId && files.length === 0) {
+        showStatus('❌ Выберите существующий корпус или загрузите новые файлы', 'error');
         return;
     }
     
@@ -174,284 +332,314 @@ async function startFineTuning() {
         document.getElementById('startBtn').disabled = true;
         showStatus('🚀 Запуск дообучения модели...', 'processing');
         
-        // Запоминаем время начала дообучения
         fineTuningStartTime = Date.now();
         
-        // Получаем информацию о времени обучения базовой модели
-        const baseModelInfo = availableModels.find(m => m.model_id === baseModelId);
-        if (baseModelInfo && baseModelInfo.training_time) {
-            baseTrainingTime = baseModelInfo.training_time;
+        let response;
+        
+        if (existingCorpusId) {
+            // Используем существующий корпус
+            const encodedModelName = btoa(unescape(encodeURIComponent(newModelName)));
+            
+            response = await apiFetch('/api/fine-tuning/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Base-Model-ID': baseModelId,
+                    'X-New-Model-Name': encodedModelName,
+                    'X-Corpus-ID': existingCorpusId
+                }
+            });
+        } else {
+            // Загружаем новые файлы
+            const formData = new FormData();
+            Array.from(files).forEach(file => formData.append('files', file));
+            formData.append('new_model_name', newModelName);
+            
+            response = await apiFetch('/api/fine-tuning/start', {
+                method: 'POST',
+                headers: {
+                    'X-Base-Model-ID': baseModelId
+                },
+                body: formData
+            });
         }
         
-        const formData = new FormData();
-        Array.from(files).forEach(file => formData.append('files', file));
-        formData.append('new_model_name', newModelName);
-
-        const response = await apiFetch('/api/fine-tuning/start', {
-            method: 'POST',
-            headers: {
-                'X-Base-Model-ID': baseModelId
-            },
-            body: formData
-        });
         startTimer();
+        
         if (!response.ok) {
-            const error = await response.text();
-            throw new Error(error || 'Ошибка сервера');
+            if (response.status === 404) {
+                const error = await response.text();
+                throw new Error(error.includes('Base model') ? 'Базовая модель не найдена' : 
+                               error.includes('Corpus') ? 'Корпус не найден' : 'Ресурс не найден');
+            } else {
+                throw new Error(`Ошибка сервера: ${response.status}`);
+            }
         }
         
         const result = await response.json();
         currentJobId = result.job_id;
         
         showStatus(`✅ Дообучение запущено. Job ID: ${currentJobId}`, 'success');
+        
+        // Начинаем проверку статуса
         startStatusChecking();
         
     } catch (error) {
         console.error('Fine-tuning error:', error);
         showStatus('❌ Ошибка: ' + error.message, 'error');
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('startBtn').disabled = false;
+        resetUI();
     }
 }
 
-// Проверка статуса дообучения
 function startStatusChecking() {
-    if (checkInterval) clearInterval(checkInterval);
+    if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+    }
     
-    checkInterval = setInterval(async () => {
-        try {
-            const response = await apiFetch(`/api/jobs/${currentJobId}`);
-            if (!response.ok) throw new Error('Status check failed');
-            
-            const status = await response.json();
-            
-            if (status.status === 'processing') {
-                updateProgress(status);
-            } else if (status.status === 'completed') {
-                clearInterval(checkInterval);
-                await fetchResults(status.result_url);
-            } else if (status.status === 'error') {
-                clearInterval(checkInterval);
-                showStatus('❌ Ошибка дообучения', 'error');
-                document.getElementById('loading').style.display = 'none';
-            }
-        } catch (error) {
-            console.error('Status check error:', error);
-        }
-    }, 3000);
+    // Первая проверка через 2 секунды
+    setTimeout(() => {
+        checkJobStatus();
+        statusCheckInterval = setInterval(checkJobStatus, 3000);
+    }, 2000);
 }
 
-function updateProgress(status) {
-    const progress = status.progress || 0;
+function resetUI() {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('startBtn').disabled = false;
+    if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+        statusCheckInterval = null;
+    }
+}
+
+function updateProgress(progress, message) {
     document.getElementById('progressFill').style.width = progress + '%';
-    
-    let details = `Прогресс: ${progress}%`;
-    if (status.details) {
-        details += ` | Файлов обработано: ${status.details.files_processed || 0}/${status.details.total_files || 0}`;
-        if (status.details.current_epoch) {
-            details += ` | Эпоха: ${status.details.current_epoch || 0}/${status.details.total_epochs || 0}`;
-        }
-    }
-    document.getElementById('progressDetails').textContent = details;
-    
-    // Сравнение времени выполнения
-    if (fineTuningStartTime && baseTrainingTime) {
-        const elapsedTime = (Date.now() - fineTuningStartTime) / 1000; // в секундах
-        const timeComparison = baseTrainingTime / elapsedTime;
-        
-        let comparisonText = `Время дообучения: ${elapsedTime.toFixed(1)}с, `;
-        comparisonText += `Базовое обучение: ${baseTrainingTime.toFixed(1)}с, `;
-        comparisonText += `Ускорение: ${timeComparison.toFixed(1)}x`;
-        
-        if (timeComparison > 10) {
-            comparisonText += ' ✅ (Дообучение признано успешным)';
-        } else {
-            comparisonText += ' ⚠️ (Дообучение не признано успешным)';
-        }
-        
-        document.getElementById('timeComparison').textContent = comparisonText;
-    }
+    document.getElementById('progressDetails').textContent = message || `Прогресс: ${progress}%`;
 }
 
-// Получение результатов дообучения
-async function fetchResults(resultUrl) {
-    try {
-        const response = await apiFetch("/api/result", {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-                "x-result-url": resultUrl
-            },
-        });
-        trainingTime = stopTimer();
-        if (!response.ok) throw new Error('Failed to fetch results');
-        
-        const results = await response.json();
-        displayResults(results);
-        showStatus('Дообучение завершено успешно!', 'success');
-        
-    } catch (error) {
-        console.error('Error fetching results:', error);
-        showStatus('Ошибка получения результатов: ' + error.message, 'error');
-    } finally {
-        document.getElementById('loading').style.display = 'none';
-        loadFineTuningHistory();
-    }
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 function displayResults(results) {
     document.getElementById('results').style.display = 'block';
     
     // Общая статистика
-    document.getElementById('summaryStats').innerHTML = `
+    const summaryStats = document.getElementById('summaryStats');
+    summaryStats.innerHTML = `
         <div class="stat-item">
-            <div class="stat-value">${results.new_model_id ? '✅' : '❌'}</div>
-            <div class="stat-label">Модель создана</div>
+            <div class="stat-value">${results.new_model_id || '✅'}</div>
+            <div class="stat-label">Новая модель</div>
         </div>
         <div class="stat-item">
             <div class="stat-value">${results.files_processed || 0}</div>
-            <div class="stat-label">Файлов обработано</div>
+            <div class="stat-label">Документов обработано</div>
         </div>
         <div class="stat-item">
             <div class="stat-value">${results.training_time ? results.training_time.toFixed(1) + ' с' : 'N/A'}</div>
             <div class="stat-label">Время дообучения</div>
         </div>
         <div class="stat-item">
-            <div class="stat-value">${results.performance_improvement ? (results.performance_improvement * 100).toFixed(1) + '%' : 'N/A'}</div>
-            <div class="stat-label">Улучшение точности</div>
+            <div class="stat-value">${((results.performance_comparison?.fine_tuned_silhouette_score || 0) * 100).toFixed(1)}%</div>
+            <div class="stat-label">Silhouette Score</div>
         </div>
-        ${results.clustering_result ? `
         <div class="stat-item">
-            <div class="stat-value">${results.clustering_result.total_clusters || 0}</div>
+            <div class="stat-value">${results.clustering_result?.total_clusters || 0}</div>
             <div class="stat-label">Всего кластеров</div>
         </div>
         <div class="stat-item">
-            <div class="stat-value">+${results.clustering_result.new_clusters || 0}</div>
+            <div class="stat-value ${results.clustering_result?.new_clusters > 0 ? 'positive' : ''}">
+                +${results.clustering_result?.new_clusters || 0}
+            </div>
             <div class="stat-label">Новых кластеров</div>
         </div>
-        ` : ''}
     `;
     
     // Сравнение производительности
     if (results.performance_comparison) {
         const comp = results.performance_comparison;
+        
+        const silhouetteImproved = comp.fine_tuned_silhouette_score > comp.base_silhouette_score;
+        const calinskiImproved = comp.fine_tuned_calinski_harabasz_score > comp.base_calinski_harabasz_score;
+        const daviesImproved = comp.fine_tuned_davies_bouldin_score < comp.base_davies_bouldin_score;
+        
         document.getElementById('performanceComparison').innerHTML = `
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
                 <div style="padding: 15px; background: #f0f7ff; border-radius: 8px;">
                     <h4>Базовая модель</h4>
-                    <p>Точность: ${(comp.base_accuracy * 100).toFixed(1)}%</p>
-                    <p>Время обучения: ${comp.base_training_time.toFixed(1)}с</p>
+                    <p><strong>Silhouette:</strong> ${comp.base_silhouette_score.toFixed(3)}</p>
+                    <p><strong>Calinski-Harabasz:</strong> ${comp.base_calinski_harabasz_score.toFixed(1)}</p>
+                    <p><strong>Davies-Bouldin:</strong> ${comp.base_davies_bouldin_score.toFixed(3)}</p>
+                    <p><strong>Время:</strong> ${comp.base_training_time.toFixed(1)}с</p>
                 </div>
                 <div style="padding: 15px; background: #e6ffe6; border-radius: 8px;">
                     <h4>Дообученная модель</h4>
-                    <p>Точность: ${(comp.fine_tuned_accuracy * 100).toFixed(1)}%</p>
-                    <p>Время дообучения: ${comp.fine_tuning_time.toFixed(1)}с</p>
-                    <p>Ускорение: ${(comp.base_training_time / comp.fine_tuning_time).toFixed(1)}x</p>
+                    <p><strong>Silhouette:</strong> ${comp.fine_tuned_silhouette_score.toFixed(3)} 
+                       ${silhouetteImproved ? '↑' : '↓'} 
+                       (${((comp.fine_tuned_silhouette_score - comp.base_silhouette_score) * 100).toFixed(1)}%)</p>
+                    <p><strong>Calinski-Harabasz:</strong> ${comp.fine_tuned_calinski_harabasz_score.toFixed(1)} 
+                       ${calinskiImproved ? '↑' : '↓'}
+                       (${((comp.fine_tuned_calinski_harabasz_score - comp.base_calinski_harabasz_score) / comp.base_calinski_harabasz_score * 100).toFixed(1)}%)</p>
+                    <p><strong>Davies-Bouldin:</strong> ${comp.fine_tuned_davies_bouldin_score.toFixed(3)} 
+                       ${daviesImproved ? '↓' : '↑'}
+                       (${((comp.fine_tuned_davies_bouldin_score - comp.base_davies_bouldin_score) / comp.base_davies_bouldin_score * 100).toFixed(1)}%)</p>
+                    <p><strong>Время:</strong> ${comp.fine_tuning_time.toFixed(1)}с</p>
+                    <p><strong>Ускорение:</strong> ${(comp.base_training_time / comp.fine_tuning_time).toFixed(1)}x</p>
                 </div>
             </div>
         `;
     }
     
-    // Отображение результатов кластеризации, если они есть
+    // Отображение глобальных метрик
+    if (results.clustering_result?.global_metrics) {
+        const global = results.clustering_result.global_metrics;
+        const globalMetricsHtml = `
+            <div style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                <h4>Глобальные метрики кластеризации</h4>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                    <div>
+                        <strong>Silhouette:</strong> ${global.avg_silhouette_score.toFixed(3)}
+                    </div>
+                    <div>
+                        <strong>Intra-distance:</strong> ${global.avg_intra_cluster_distance.toFixed(3)}
+                    </div>
+                    <div>
+                        <strong>Inter-distance:</strong> ${global.avg_inter_cluster_distance.toFixed(3)}
+                    </div>
+                    <div>
+                        <strong>Плотность:</strong> ${(global.cluster_density * 100).toFixed(1)}%
+                    </div>
+                </div>
+                <p style="margin-top: 10px; font-size: 0.9rem; color: #666;">
+                    Intra-distance (чем меньше, тем лучше): компактность кластеров<br>
+                    Inter-distance (чем больше, тем лучше): разделимость кластеров
+                </p>
+            </div>
+        `;
+        
+        const performanceDiv = document.getElementById('performanceComparison');
+        performanceDiv.insertAdjacentHTML('afterend', globalMetricsHtml);
+    }
+    
     if (results.clustering_result) {
         displayClusteringResults(results.clustering_result);
     }
 }
 
-// Функция для отображения результатов кластеризации
 function displayClusteringResults(clusterData) {
-    console.log(clusterData);
+    const oldSection = document.getElementById('clustering-results-section');
+    if (oldSection) oldSection.remove();
+    
     const clusteringSection = document.createElement('div');
+    clusteringSection.id = 'clustering-results-section';
     clusteringSection.className = 'section';
     
     let clustersHtml = '';
     
-    // Новые кластеры
     if (clusterData.cluster_changes?.new_clusters_details?.length > 0) {
         clustersHtml += `
             <div class="cluster-category">
                 <h4 style="color: #28a745;">🆕 Новые кластеры (${clusterData.new_clusters})</h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;">
                 ${clusterData.cluster_changes.new_clusters_details.map(cluster => `
-                    <div class="cluster-card new">
-                        <h5>${cluster.cluster_id}</h5>
-                        <p><strong>Размер:</strong> ${cluster.size} файлов</p>
+                    <div class="cluster-card new" style="border-left: 4px solid #28a745; padding: 10px; margin-bottom: 10px; background: #f9fff9;">
+                        <h5 style="margin: 0 0 10px 0;">${cluster.cluster_id}</h5>
+                        <p><strong>Размер:</strong> ${cluster.size} документов</p>
                         <p><strong>Темы:</strong> ${cluster.main_topics.join(', ')}</p>
-                        <p><strong>Уверенность:</strong> ${(cluster.avg_confidence * 100).toFixed(1)}%</p>
+                        <p><strong>Когезия:</strong> ${(cluster.cohesion_score * 100).toFixed(1)}%</p>
+                        <p><strong>Silhouette:</strong> ${cluster.silhouette_score.toFixed(3)}</p>
+                        <p><strong>Расст. до центра:</strong> ${cluster.avg_distance_to_centroid.toFixed(3)}</p>
                     </div>
                 `).join('')}
+                </div>
             </div>
         `;
     }
     
-    // Измененные кластеры
     if (clusterData.cluster_changes?.modified_clusters_details?.length > 0) {
         clustersHtml += `
             <div class="cluster-category">
                 <h4 style="color: #ffc107;">🔄 Измененные кластеры (${clusterData.modified_clusters})</h4>
-                ${clusterData.cluster_changes.modified_clusters_details.map(cluster => `
-                    <div class="cluster-card modified">
-                        <h5>${cluster.cluster_id}</h5>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;">
+                ${clusterData.cluster_changes.modified_clusters_details.map(cluster => {
+                    const sizeChangeClass = cluster.size_change.startsWith('+') ? 'positive' : 'negative';
+                    return `
+                    <div class="cluster-card modified" style="border-left: 4px solid #ffc107; padding: 10px; margin-bottom: 10px; background: #fff9e6;">
+                        <h5 style="margin: 0 0 10px 0;">${cluster.cluster_id}</h5>
                         <p><strong>Размер:</strong> ${cluster.old_size} → ${cluster.new_size} 
-                           <span style="color: ${cluster.size_change.startsWith('+') ? '#28a745' : '#dc3545'}">
-                           ${cluster.size_change}
-                           </span>
+                           <span class="${sizeChangeClass}">${cluster.size_change}</span>
                         </p>
                         <p><strong>Новые темы:</strong> ${cluster.new_topics.join(', ') || 'нет'}</p>
                         <p><strong>Удаленные темы:</strong> ${cluster.removed_topics.join(', ') || 'нет'}</p>
-                        <p><strong>Улучшение уверенности:</strong> +${(cluster.confidence_improvement * 100).toFixed(1)}%</p>
+                        <p><strong>Silhouette:</strong> ${cluster.old_silhouette_score.toFixed(3)} → ${cluster.new_silhouette_score.toFixed(3)} 
+                           <span class="positive">+${(cluster.silhouette_improvement * 100).toFixed(1)}%</span>
+                        </p>
                     </div>
-                `).join('')}
+                `}).join('')}
+                </div>
             </div>
         `;
     }
     
-    // Неизмененные кластеры
     if (clusterData.cluster_changes?.unchanged_clusters?.length > 0) {
+        const unchangedToShow = clusterData.cluster_changes.unchanged_clusters.slice(0, 4);
+        const hiddenCount = clusterData.cluster_changes.unchanged_clusters.length - 4;
+        
         clustersHtml += `
             <div class="cluster-category">
                 <h4 style="color: #6c757d;">✅ Неизмененные кластеры (${clusterData.unchanged_clusters})</h4>
-                ${clusterData.cluster_changes.unchanged_clusters.map(cluster => `
-                    <div class="cluster-card unchanged">
-                        <h5>${cluster.cluster_id}</h5>
-                        <p><strong>Размер:</strong> ${cluster.size} файлов</p>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;">
+                ${unchangedToShow.map(cluster => `
+                    <div class="cluster-card unchanged" style="border-left: 4px solid #6c757d; padding: 10px; margin-bottom: 10px; background: #f8f9fa;">
+                        <h5 style="margin: 0 0 10px 0;">${cluster.cluster_id}</h5>
+                        <p><strong>Размер:</strong> ${cluster.size} документов</p>
                         <p><strong>Темы:</strong> ${cluster.main_topics.join(', ')}</p>
-                        <p><strong>Уверенность:</strong> ${(cluster.avg_confidence * 100).toFixed(1)}%</p>
+                        <p><strong>Когезия:</strong> ${(cluster.cohesion_score * 100).toFixed(1)}%</p>
+                        <p><strong>Silhouette:</strong> ${cluster.silhouette_score.toFixed(3)}</p>
                     </div>
                 `).join('')}
+                </div>
+                ${hiddenCount > 0 ? `
+                    <details style="margin-top: 10px;">
+                        <summary>Показать еще ${hiddenCount} кластеров</summary>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; margin-top: 10px;">
+                        ${clusterData.cluster_changes.unchanged_clusters.slice(4).map(cluster => `
+                            <div class="cluster-card unchanged" style="border-left: 4px solid #6c757d; padding: 10px; margin-bottom: 10px; background: #f8f9fa;">
+                                <h5 style="margin: 0 0 10px 0;">${cluster.cluster_id}</h5>
+                                <p><strong>Размер:</strong> ${cluster.size} документов</p>
+                                <p><strong>Темы:</strong> ${cluster.main_topics.join(', ')}</p>
+                                <p><strong>Когезия:</strong> ${(cluster.cohesion_score * 100).toFixed(1)}%</p>
+                                <p><strong>Silhouette:</strong> ${cluster.silhouette_score.toFixed(3)}</p>
+                            </div>
+                        `).join('')}
+                        </div>
+                    </details>
+                ` : ''}
             </div>
         `;
     }
     
-    // Сводная статистика
     if (clusterData.summary) {
         const summary = clusterData.summary;
         clustersHtml += `
-            <div class="cluster-summary">
+            <div class="cluster-summary" style="margin-top: 30px; padding: 20px; background: #e9ecef; border-radius: 8px;">
                 <h4>📊 Сводная статистика кластеризации</h4>
-                <div class="summary-grid">
-                    <div class="summary-item">
-                        <span class="summary-value">${summary.total_documents}</span>
-                        <span class="summary-label">Всего документов</span>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; text-align: center;">
+                    <div style="padding: 10px; background: white; border-radius: 8px;">
+                        <div style="font-size: 24px; font-weight: bold; color: #28a745;">${summary.documents_in_new_clusters}</div>
+                        <div>В новых кластерах</div>
                     </div>
-                    <div class="summary-item">
-                        <span class="summary-value" style="color: #28a745;">${summary.documents_in_new_clusters}</span>
-                        <span class="summary-label">В новых кластерах</span>
+                    <div style="padding: 10px; background: white; border-radius: 8px;">
+                        <div style="font-size: 24px; font-weight: bold; color: #ffc107;">${summary.documents_in_modified_clusters}</div>
+                        <div>В измененных кластерах</div>
                     </div>
-                    <div class="summary-item">
-                        <span class="summary-value" style="color: #ffc107;">${summary.documents_in_modified_clusters}</span>
-                        <span class="summary-label">В измененных кластерах</span>
-                    </div>
-                    <div class="summary-item">
-                        <span class="summary-value" style="color: #6c757d;">${summary.documents_in_unchanged_clusters}</span>
-                        <span class="summary-label">В неизмененных кластерах</span>
-                    </div>
-                    <div class="summary-item">
-                        <span class="summary-value" style="color: #17a2b8;">${summary.overall_confidence_change}</span>
-                        <span class="summary-label">Изменение уверенности</span>
-                    </div>
-                    <div class="summary-item">
-                        <span class="summary-value" style="color: #6f42c1;">${summary.cluster_quality_improvement}</span>
-                        <span class="summary-label">Качество кластеризации</span>
+                    <div style="padding: 10px; background: white; border-radius: 8px;">
+                        <div style="font-size: 24px; font-weight: bold; color: #6c757d;">${summary.documents_in_unchanged_clusters}</div>
+                        <div>В неизмененных кластерах</div>
                     </div>
                 </div>
             </div>
@@ -461,11 +649,11 @@ function displayClusteringResults(clusterData) {
     clusteringSection.innerHTML = `
         <h3>📊 Результаты кластеризации после дообучения</h3>
         <div class="clustering-results">
-            <div class="cluster-overview">
-                <p><strong>Всего кластеров:</strong> ${clusterData.total_clusters || 'N/A'}</p>
-                <p><strong>Новых:</strong> <span style="color: #28a745;">${clusterData.new_clusters || 'N/A'}</span></p>
-                <p><strong>Измененных:</strong> <span style="color: #ffc107;">${clusterData.modified_clusters || 'N/A'}</span></p>
-                <p><strong>Неизмененных:</strong> <span style="color: #6c757d;">${clusterData.unchanged_clusters || 'N/A'}</span></p>
+            <div class="cluster-overview" style="display: flex; gap: 20px; margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                <div><strong>Всего кластеров:</strong> ${clusterData.total_clusters || 'N/A'}</div>
+                <div><strong>Новых:</strong> <span style="color: #28a745;">${clusterData.new_clusters || 'N/A'}</span></div>
+                <div><strong>Измененных:</strong> <span style="color: #ffc107;">${clusterData.modified_clusters || 'N/A'}</span></div>
+                <div><strong>Неизмененных:</strong> <span style="color: #6c757d;">${clusterData.unchanged_clusters || 'N/A'}</span></div>
             </div>
             ${clustersHtml}
         </div>
@@ -474,60 +662,21 @@ function displayClusteringResults(clusterData) {
     document.getElementById('results').appendChild(clusteringSection);
 }
 
-// Рекурсивное отображение дерева кластеров (не используется в текущей версии)
-function renderClusterTree(node, level = 0) {
-    if (!node.id) return '<p>Нет данных о кластеризации</p>';
-
-    let html = `
-        <div class="cluster-node" style="margin-left: ${level * 20}px">
-            <div class="cluster-header">
-                <strong>${node.name || 'Без названия'}</strong>
-                <span class="cluster-stats">${node.fileCount || 0} файлов, ${((node.avgSimilarity || 0) * 100).toFixed(1)}%</span>
-            </div>
-    `;
-
-    if (node.changes && node.changes.status !== 'unchanged') {
-        html += `<span class="change-badge ${node.changes.status}">${getChangeBadgeText(node.changes.status)}</span>`;
-    }
-
-    if (node.children && node.children.length > 0) {
-        html += '<div class="cluster-children">';
-        node.children.forEach(child => {
-            html += renderClusterTree(child, level + 1);
-        });
-        html += '</div>';
-    }
-
-    html += '</div>';
-    return html;
-}
-
-// Получение текста для отображения статуса изменения кластера
-function getChangeBadgeText(status) {
-    const statusText = {
-        'new': 'НОВЫЙ',
-        'modified': 'ИЗМЕНЕН',
-        'removed': 'УДАЛЕН',
-        'moved': 'ПЕРЕМЕЩЕН'
-    };
-    return statusText[status] || status;
-}
-
 // Загрузка истории выполненных заданий дообучения
 async function loadFineTuningHistory() {
-    try {
-        const response = await apiFetch('/api/fine-tuning/history');
+    
+    // try {
+    //     const response = await apiFetch('/api/fine-tuning/history');
 
-        if (response.ok) {
-            const history = await response.json();
-            displayFineTuningHistory(history);
-        }
-    } catch (error) {
-        console.error('Error loading fine-tuning history:', error);
-    }
+    //     if (response.ok) {
+    //         const history = await response.json();
+    //         displayFineTuningHistory(history);
+    //     }
+    // } catch (error) {
+    //     console.error('Error loading fine-tuning history:', error);
+    // }
 }
 
-// Отображение истории дообучения моделей
 function displayFineTuningHistory(history) {
     const container = document.getElementById('fineTuningHistory');
     if (!history || history.length === 0) {
@@ -536,31 +685,31 @@ function displayFineTuningHistory(history) {
     }
 
     container.innerHTML = history.map(job => `
-        <div class="job-item">
-            <div class="job-header">
+        <div class="job-item" style="border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 8px;">
+            <div class="job-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                 <strong>🔧 ${job.job_id?.substring(0, 8)}...</strong>
-                <span class="job-status status-${job.status}">${getStatusIcon(job.status)} ${job.status}</span>
+                <span class="job-status status-${job.status}" style="padding: 3px 8px; border-radius: 4px; font-size: 0.9rem;">
+                    ${getStatusIcon(job.status)} ${job.status}
+                </span>
             </div>
-            <div class="job-details">
+            <div class="job-details" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
                 <p><strong>Базовая модель:</strong> ${job.base_model_id || 'N/A'}</p>
                 <p><strong>Новая модель:</strong> ${job.new_model_id || 'N/A'}</p>
+                <p><strong>Корпус:</strong> ${job.corpus_id || 'N/A'}</p>
                 <p><strong>Создано:</strong> ${new Date(job.created_at).toLocaleString()}</p>
-                <p><strong>Время:</strong> ${trainingTime}с</p>
+                <p><strong>Время:</strong> ${job.training_time ? job.training_time.toFixed(1) + 'с' : 'N/A'}</p>
+                <p><strong>Silhouette:</strong> ${job.fine_tuned_silhouette_score ? job.fine_tuned_silhouette_score.toFixed(3) : 'N/A'}</p>
             </div>
         </div>
     `).join('');
 }
 
-// Вспомогательные функции для работы с интерфейсом
-
-// Отображение статуса операции в интерфейсе
 function showStatus(message, type) {
     const container = document.getElementById('status');
     container.innerHTML = `<div class="status-${type}">${message}</div>`;
     container.className = `status-container status-${type}`;
 }
 
-// Получение иконки для отображения статуса задания
 function getStatusIcon(status) {
     const icons = {
         'processing': '🔄',
@@ -570,23 +719,35 @@ function getStatusIcon(status) {
     return icons[status] || '📋';
 }
 
-// Заглушка для функции скачивания результатов дообучения
 function downloadResults() {
     alert('Функция скачивания отчета будет реализована в будущем');
 }
 
-// Заглушка для функции тестирования новой модели
 function testNewModel() {
     alert('Функция тестирования новой модели будет реализована в будущем');
 }
 
-// Заглушка для функции развертывания новой модели
 function deployNewModel() {
     alert('Функция развертывания новой модели будет реализована в будущем');
 }
 
-// Инициализация приложения при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
-    loadModels(); // Загружаем список доступных моделей
-    loadFineTuningHistory(); // Загружаем историю дообучения
+    loadModels();
+    loadCorpusHistory();
+    loadFineTuningHistory();
+    
+    const style = document.createElement('style');
+    style.textContent = `
+        .positive { color: #28a745; font-weight: bold; }
+        .negative { color: #dc3545; font-weight: bold; }
+        .cluster-card { transition: transform 0.2s; }
+        .cluster-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .job-status { text-transform: capitalize; }
+        .status-processing { background: #fff3cd; color: #856404; }
+        .status-completed { background: #d4edda; color: #155724; }
+        .status-error { background: #f8d7da; color: #721c24; }
+        .file-ext { background: #e9ecef; padding: 2px 6px; border-radius: 4px; margin: 0 2px; }
+        .selected-folder { margin-left: 10px; font-weight: bold; color: #28a745; }
+    `;
+    document.head.appendChild(style);
 });

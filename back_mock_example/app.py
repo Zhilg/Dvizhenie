@@ -827,7 +827,6 @@ def start_fine_tuning():
         print(f"Max file size: {max_file_size}")
         print(f"File extensions: {file_extensions}")
         
-        # Создаем job для асинхронной обработки
         job_id = str(uuid.uuid4())
         jobs_db[job_id] = {
             'status': 'processing',
@@ -839,7 +838,6 @@ def start_fine_tuning():
         }
         job_creation_time[job_id] = time.time()
         
-        # Возвращаем сразу ответ с job_id (как в вашем прокси)
         return jsonify({
             "job_id": job_id,
             "estimated_time_min": 60

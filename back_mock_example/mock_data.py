@@ -1236,41 +1236,60 @@ MOCK_CLUSTER_RESULT = {
 }
 
 MOCK_FINE_TUNING_RESULT = {
-    "new_model_id": f"fine_tuned_{str(uuid.uuid4())[:8]}",
+    "new_model_id": f"fine_tuned_{str(uuid.uuid4())[:8]}", # или любой другой id
     "base_model_id": "base_model_001",
     "files_processed": 12480,
-    "training_time": 456.78,
-    "performance_improvement": 0.15,
-    "performance_comparison": {
-        "base_accuracy": 0.82,
-        "fine_tuned_accuracy": 0.94,
-        "base_training_time": 1200.45,
-        "fine_tuning_time": 456.78
+    "training_time": 456.78, # время в сек.
+    
+    "performance_comparison": { # Тут выдаются средние значения по всем кластерам.
+        "base_silhouette_score": 0.38, # Силует --  Показывает, насколько объекты внутри одного кластера похожи друг на друга (компактность) и насколько сильно отличаются от объектов из соседних кластеров (отделимость). Диапазон: [-1 до 1]. Чем ближе к 1, тем лучше. 
+        "fine_tuned_silhouette_score": 0.52,
+        "base_calinski_harabasz_score": 1245.6, # Индекс Калински-Харабаса -- оценивает, насколько хорошо кластеры отделены друг от друга. Диапазон: не ограничен. Чем больше, тем лучше.
+        "fine_tuned_calinski_harabasz_score": 1876.3, 
+        "base_davies_bouldin_score": 0.94, # Индекс Дэвиса-Болдина -- показывает среднее "сходство" между каждым кластером и его самым похожим соседом. Диапазон: [0, +inf). Чем ближе к 0, тем лучше.
+        "fine_tuned_davies_bouldin_score": 0.71,
+        "base_training_time": 1200.45, # время в сек.
+        "fine_tuning_time": 456.78 # время в сек.
     },
+    
     "clustering_result": {
         "total_clusters": 15,
         "new_clusters": 3,
         "modified_clusters": 4,
         "unchanged_clusters": 8,
+        
+        "global_metrics": {
+            "avg_silhouette_score": 0.52,
+            "avg_intra_cluster_distance": 0.34, # Среднее расстояние элементов кластера. Чем меньше, тем лучше.
+            "avg_inter_cluster_distance": 0.78, # Среднее расстояние между разными кластерами. Чем больше, тем лучше.
+            "cluster_density": 0.86 # Средняя плотность всех кластеров, для вычисления используются графики степени схожести, которые отправляются в /clusterization
+        },
+        
         "cluster_changes": {
             "new_clusters_details": [
                 {
                     "cluster_id": "cluster_13",
-                    "size": 45,
+                    "size": 45, # Количество элементов, будь то файлы или абзацы или что-то еще.
                     "main_topics": ["искусственный интеллект", "машинное обучение", "нейросети"],
-                    "avg_confidence": 0.92
+                    "cohesion_score": 0.92, # 1 / (1 + avg_distance_to_centroid)
+                    "silhouette_score": 0.58,
+                    "avg_distance_to_centroid": 0.21
                 },
                 {
                     "cluster_id": "cluster_14",
                     "size": 28,
                     "main_topics": ["кибербезопасность", "защита данных", "шифрование"],
-                    "avg_confidence": 0.88
+                    "cohesion_score": 0.88,
+                    "silhouette_score": 0.47,
+                    "avg_distance_to_centroid": 0.29
                 },
                 {
                     "cluster_id": "cluster_15",
                     "size": 32,
                     "main_topics": ["блокчейн", "криптовалюты", "смарт-контракты"],
-                    "avg_confidence": 0.85
+                    "cohesion_score": 0.85,
+                    "silhouette_score": 0.43,
+                    "avg_distance_to_centroid": 0.33
                 }
             ],
             "modified_clusters_details": [
@@ -1281,7 +1300,9 @@ MOCK_FINE_TUNING_RESULT = {
                     "size_change": "+36",
                     "new_topics": ["обработка естественного языка", "NLP"],
                     "removed_topics": ["текстовый анализ"],
-                    "confidence_improvement": 0.08
+                    "silhouette_improvement": 0.08,
+                    "old_silhouette_score": 0.45,
+                    "new_silhouette_score": 0.53
                 },
                 {
                     "cluster_id": "cluster_5",
@@ -1290,7 +1311,9 @@ MOCK_FINE_TUNING_RESULT = {
                     "size_change": "-13",
                     "new_topics": ["компьютерное зрение", "CV"],
                     "removed_topics": ["обработка изображений"],
-                    "confidence_improvement": 0.12
+                    "silhouette_improvement": 0.12,
+                    "old_silhouette_score": 0.41,
+                    "new_silhouette_score": 0.53
                 },
                 {
                     "cluster_id": "cluster_7",
@@ -1299,7 +1322,9 @@ MOCK_FINE_TUNING_RESULT = {
                     "size_change": "+24",
                     "new_topics": ["рекомендательные системы", "коллаборативная фильтрация"],
                     "removed_topics": [],
-                    "confidence_improvement": 0.15
+                    "silhouette_improvement": 0.15,
+                    "old_silhouette_score": 0.38,
+                    "new_silhouette_score": 0.53
                 },
                 {
                     "cluster_id": "cluster_9",
@@ -1308,7 +1333,9 @@ MOCK_FINE_TUNING_RESULT = {
                     "size_change": "-4",
                     "new_topics": ["анализ временных рядов"],
                     "removed_topics": ["прогнозирование"],
-                    "confidence_improvement": 0.06
+                    "silhouette_improvement": 0.06,
+                    "old_silhouette_score": 0.49,
+                    "new_silhouette_score": 0.55
                 }
             ],
             "unchanged_clusters": [
@@ -1316,59 +1343,64 @@ MOCK_FINE_TUNING_RESULT = {
                     "cluster_id": "cluster_1",
                     "size": 200,
                     "main_topics": ["веб-разработка", "backend", "frontend"],
-                    "avg_confidence": 0.95
+                    "cohesion_score": 0.95,
+                    "silhouette_score": 0.62
                 },
                 {
                     "cluster_id": "cluster_3",
                     "size": 180,
                     "main_topics": ["мобильная разработка", "iOS", "Android"],
-                    "avg_confidence": 0.93
+                    "cohesion_score": 0.93,
+                    "silhouette_score": 0.59
                 },
                 {
                     "cluster_id": "cluster_4",
                     "size": 150,
                     "main_topics": ["базы данных", "SQL", "NoSQL"],
-                    "avg_confidence": 0.91
+                    "cohesion_score": 0.91,
+                    "silhouette_score": 0.57
                 },
                 {
                     "cluster_id": "cluster_6",
                     "size": 95,
                     "main_topics": ["DevOps", "CI/CD", "контейнеризация"],
-                    "avg_confidence": 0.89
+                    "cohesion_score": 0.89,
+                    "silhouette_score": 0.54
                 },
                 {
                     "cluster_id": "cluster_8",
                     "size": 78,
                     "main_topics": ["облачные вычисления", "AWS", "Azure"],
-                    "avg_confidence": 0.87
+                    "cohesion_score": 0.87,
+                    "silhouette_score": 0.51
                 },
                 {
                     "cluster_id": "cluster_10",
                     "size": 60,
                     "main_topics": ["тестирование", "QA", "автоматизация тестов"],
-                    "avg_confidence": 0.84
+                    "cohesion_score": 0.84,
+                    "silhouette_score": 0.48
                 },
                 {
                     "cluster_id": "cluster_11",
                     "size": 52,
                     "main_topics": ["микросервисы", "архитектура"],
-                    "avg_confidence": 0.82
+                    "cohesion_score": 0.82,
+                    "silhouette_score": 0.45
                 },
                 {
                     "cluster_id": "cluster_12",
                     "size": 48,
                     "main_topics": ["интернет вещей", "IoT", "умный дом"],
-                    "avg_confidence": 0.80
+                    "cohesion_score": 0.80,
+                    "silhouette_score": 0.42
                 }
             ]
         },
         "summary": {
-            "total_documents": 12480,
             "documents_in_new_clusters": 105,
             "documents_in_modified_clusters": 355,
-            "documents_in_unchanged_clusters": 903,
-            "overall_confidence_change": "+0.10",
-            "cluster_quality_improvement": "significant"
+            "documents_in_unchanged_clusters": 12020,
         }
     }
 }

@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Дообучение модели классификации</title>
+    <title>Дообучение модели кластеризации</title>
     <link rel="stylesheet" href="../assets/css/fine-tuning.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Дообучение модели классификации</h1>
+            <h1>Дообучение модели кластеризации</h1>
             <a href="/" class="home-btn">🏠 Домой</a>
         </header>
         
@@ -36,19 +36,38 @@
         </div>
         
         <div class="section">
-            <h2>Датасет</h2>
+            <h2>Выбор данных для дообучения</h2>
             
-            <div class="upload-section">
-                <input type="file" id="trainingDataInput" webkitdirectory directory multiple style="display: none;">
-                <button class="btn btn-primary" onclick="selectTrainingFolder()">
-                    Выберите папку с текстами для дообучения
-                </button>
-                <span id="selectedTrainingFolder" class="selected-folder"></span>
+            <div style="margin-bottom: 20px;">
+                <h3>Вариант 1: Использовать существующий корпус</h3>
+                <div class="config-group">
+                    <span class="config-label">Корпус:</span>
+                    <select id="corpusSelect" class="config-input">
+                        <option value="">Загрузка корпусов...</option>
+                    </select>
+                    <button class="btn btn-small btn-secondary" onclick="loadCorpusHistory()" title="Обновить список корпусов">🔄</button>
+                </div>
+                <div class="corpus-info" id="corpusInfo" style="display: none;">
+                    <h4>Информация о корпусе:</h4>
+                    <div id="corpusDetails"></div>
+                </div>
             </div>
             
-            <div id="fileStats" style="display: none; margin-top: 20px; text-align: center;">
-                <h3>Статистика выбранных файлов</h3>
-                <div id="fileStatsContent"></div>
+
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
+                <h3>Вариант 2: Загрузить новые файлы</h3>
+                <div class="upload-section">
+                    <input type="file" id="trainingDataInput" webkitdirectory directory multiple style="display: none;">
+                    <button class="btn btn-primary" onclick="selectTrainingFolder()">
+                        Выберите папку с текстами для дообучения
+                    </button>
+                    <span id="selectedTrainingFolder" class="selected-folder"></span>
+                </div>
+                
+                <div id="fileStats" style="display: none; margin-top: 20px;">
+                    <h4>Статистика выбранных файлов</h4>
+                    <div id="fileStatsContent"></div>
+                </div>
             </div>
         </div>
         
@@ -78,12 +97,12 @@
             <div class="job-history" id="fineTuningHistory"></div>
         </div>
         
-        <div id="results" class="results">
+        <div id="results" class="results" style="display: none;">
             <h2>Результаты дообучения</h2>
             
             <div class="summary-section">
                 <h3>Общая статистика</h3>
-                <div id="summaryStats" class="stats-grid"></div>
+                <div id="summaryStats" class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin: 20px 0;"></div>
             </div>
             
             <div class="section">
@@ -91,7 +110,7 @@
                 <div id="performanceComparison"></div>
             </div>
             
-            <div class="actions">
+            <div class="actions" style="display: flex; gap: 10px; justify-content: center; margin: 30px 0;">
                 <button class="btn btn-primary" onclick="downloadResults()">Скачать отчет</button>
                 <button class="btn btn-secondary" onclick="testNewModel()">Протестировать новую модель</button>
                 <button class="btn btn-success" onclick="deployNewModel()">Развернуть новую модель</button>
