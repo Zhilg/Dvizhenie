@@ -750,6 +750,18 @@ POST /api/evaluation/precision HTTP/1.1
 Content-Type: application/json
 x-classification-job-id: 123e4567-e89b-12d3-a456-426614174000 # ID решения задачи 11/12
 x-evaluation-type: cluster|grnti  # тип классификации: cluster (Задача 11) или grnti (Задача 12)
+
+{
+"ground_truth": [   // эталонные метки из оболочки
+    {
+      "file": "doc1.txt",
+      "expert_label": "cluster1"
+    },
+    // еще 999 файлов
+  ]
+}
+
+
 ```
 
 Ответ:
@@ -839,6 +851,17 @@ POST /api/evaluation/recall HTTP/1.1
 Content-Type: application/json
 x-classification-job-id: 123e4567-e89b-12d3-a456-426614174000 # ID решения задачи 11/12
 x-evaluation-type: cluster|grnti  # тип классификации: cluster (Задача 11) или grnti (Задача 12)
+
+{
+"ground_truth": [   // эталонные метки из оболочки
+    {
+      "file": "doc1.txt",
+      "expert_label": "cluster1"
+    },
+    // остальные файлы
+  ]
+}
+
 ```
 
 Ответ:
