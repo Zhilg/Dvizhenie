@@ -53,29 +53,44 @@ async function loadModels() {
 // Обновление пользовательского интерфейса в зависимости от наличия корпусов
 async function updateUI() {
     try {
-        corpusHistory = await loadCorpusHistory(); // Загрузка истории корпусов
+        corpusHistory = await loadCorpusHistory();
+        let noCorpusMessage = document.getElementById('noCorpusMessage');
+        let searchSection = document.getElementById('searchSection');
+        
+        if (!noCorpusMessage) {
+            noCorpusMessage = document.createElement('div');
+            noCorpusMessage.id = 'noCorpusMessage';
+            noCorpusMessage.className = 'alert alert-info';
+            noCorpusMessage.textContent = 'Нет доступных корпусов. Загрузите корпус на главной странице.';
+            document.querySelector('.container')?.appendChild(noCorpusMessage);
+        }
+        
+        if (!searchSection) {
+            searchSection = document.createElement('div');
+            searchSection.id = 'searchSection';
+            document.querySelector('.container')?.appendChild(searchSection);
+        }
 
         if (corpusHistory.length > 0) {
-            // Если есть корпуса, показываем секцию поиска и скрываем сообщение об отсутствии
-            document.getElementById('noCorpusMessage').style.display = 'none';
-            document.getElementById('searchSection').style.display = 'block';
-            loadCorpusDropdown(); // Загружаем выпадающий список корпусов
+            noCorpusMessage.style.display = 'none';
+            searchSection.style.display = 'block';
+            loadCorpusDropdown();
         } else {
-            // Если корпусов нет, показываем сообщение и скрываем поиск
-            document.getElementById('noCorpusMessage').style.display = 'block';
-            document.getElementById('searchSection').style.display = 'none';
+            noCorpusMessage.style.display = 'block';
+            searchSection.style.display = 'none';
         }
     } catch (error) {
         console.error('Ошибка при обновлении UI:', error);
-        // Fallback на данные из localStorage при ошибке
         corpusHistory = JSON.parse(localStorage.getItem('corpusHistory')) || [];
         if (corpusHistory.length > 0) {
             loadCorpusDropdown();
         }
     }
 
-    // Скрываем секцию загрузки (не используется на странице поиска)
-    document.getElementById('uploadSection').style.display = 'none';
+    const uploadSection = document.getElementById('uploadSection');
+    if (uploadSection) {
+        uploadSection.style.display = 'none';
+    }
 }
 
 // Получение названия модели по её ID

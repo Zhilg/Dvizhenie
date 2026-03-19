@@ -680,17 +680,31 @@ function displayVisualizations(visualizationData) {
         const currentLocation = window.location;
         const frontendUrl = `${currentLocation.protocol}//${currentLocation.hostname}:3000`;
 
+        const getFullUrl = (url) => {
+            if (/^https?:\/\//i.test(url) || /^ftp:\/\//i.test(url)) {
+                return url; 
+            } else if (url.startsWith('/')) {
+                return frontendUrl + url; 
+            } else {
+                return frontendUrl + '/' + url; 
+            }
+        };
+
         let html = '<h4 style="margin-bottom: 15px; color: #2c3e50;">Визуализации кластеризации</h4><div style="display: flex; flex-wrap: wrap; gap: 15px;">';
 
         if (visualizationData.graphic_representation) {
-            const fullUrl = frontendUrl + visualizationData.graphic_representation;
+            const fullUrl = getFullUrl(visualizationData.graphic_representation);
             html += `<div class="visualization-item"><h4>Графическая визуализация</h4><a href="${fullUrl}" target="_blank">${fullUrl}</a></div>`;
         }
+        
         if (visualizationData.planetar_representation) {
-            html += `<div class="visualization-item"><h4>Планетарная модель</h4><a href="${visualizationData.planetar_representation}" target="_blank">${visualizationData.planetar_representation}</a></div>`;
+            const fullUrl = getFullUrl(visualizationData.planetar_representation);
+            html += `<div class="visualization-item"><h4>Планетарная модель</h4><a href="${fullUrl}" target="_blank">${fullUrl}</a></div>`;
         }
+        
         if (visualizationData['drill-down_representation']) {
-            html += `<div class="visualization-item"><h4>Drill-down модель</h4><a href="${visualizationData['drill-down_representation']}" target="_blank">${visualizationData['drill-down_representation']}</a></div>`;
+            const fullUrl = getFullUrl(visualizationData['drill-down_representation']);
+            html += `<div class="visualization-item"><h4>Drill-down модель</h4><a href="${fullUrl}" target="_blank">${fullUrl}</a></div>`;
         }
 
         html += '</div>';
