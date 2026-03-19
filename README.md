@@ -589,7 +589,7 @@ HTTP/1.1 200 OK:
 После вызова происходит:
 1. Чтение иерархии файлов в файловой системе. Возможные типы файлов:
  Текстовые. Формат: txt - кодировка - UTF-8
-2. Классификация всех текстов на предмет соответствия классам, выявленным по результатам кластеризации (далее -- новым классам).
+2. Классификация всех текстов на предмет соответствия классам, предоставленным в рубрикаторе по ветке "Военное дело", т.е. 78.хх.хх. Необходимо возвращать максимально глубокий уровень, подходящий каждому файлу.
 3. Возврат в Оболочку тех же данных, что и при решении задач /clusterisation. Плюс таблицу соответствия с указанием для каждого тестового файла номер/наименований соответствующих ему новых классов и степени соответствия этим новым классам.
 
 Запрос:
@@ -598,7 +598,6 @@ POST /api/classification/grnti HTTP/1.1
 content-type: application/json (обязательный)
 x-corpus-path: относительный путь к каталогу с файлами. Путь указывается относительно точки монтирования докера ПМ (обязательный). Точка монтирования - папка shared_data
 x-model-id: идентификатор модели (обязательный)
-x-clustering-job-id: 123e4567-e89b-12d3-a456-426614174000  // ← НОВЫЙ параметр! ID решения задач 5-7, на основании которого будет проводиться классификация (обязательный).
 x-ttl-hours: количество часов, по истечении  которых можно удалять производные данные. 0 или не указано - не удалять. (необязательный)
 ```
 
@@ -653,75 +652,20 @@ HTTP/1.1 200 OK
 Content-Type: application/json
 
 {
-  "folder": "/test_corpus/control_set",
+  "corpus_id": "1240124091240",
   "model_id": "model_military_affairs_v3",
-  "grnti_branch": "военное дело",
-  "classification_results": {
-    "summary": {
-      "total_files": 1000,
-      "files_classified": 1000,
-      "agreement_with_expert": 0.87,
-      "accuracy_top_3": 0.95
-    },
-    "detailed_stats": {
-      "76.01.00": {
-        "code": "76.01.00",
-        "name": "Общие вопросы военной науки и техники",
-        "expert_count": 150,
-        "system_count": 145,
-        "true_positive": 142,
-        "false_positive": 3,
-        "false_negative": 8,
-        "precision": 0.979,
-        "recall": 0.947
-      },
-      "76.03.00": {
-        "code": "76.03.00",
-        "name": "Военное искусство",
-        "expert_count": 220,
-        "system_count": 215,
-        "true_positive": 210,
-        "false_positive": 5,
-        "false_negative": 10,
-        "precision": 0.977,
-        "recall": 0.955
-      }
-    }
-  },
   "files": [
     {
       "file": "document_0012.txt",
-      "expert_grnti_code": "76.03.01",
-      "expert_grnti_name": "Стратегия и оперативное искусство",
-      "predicted_grnti_code": "76.03.01",
-      "predicted_grnti_name": "Стратегия и оперативное искусство",
+      "code": "78.03.01", //Результат классификации отдельного файла, если не удается отнести к 3 уровню, разрешается возвращать 78.03.00
       "similarity": 0.94,
-      "top_5_predictions": [
-        ["76.03.01", 0.94],
-        ["76.03.03", 0.12],
-        ["76.01.07", 0.08],
-        ["76.05.01", 0.05],
-        ["76.29.05", 0.02]
-      ]
     },
     {
       "file": "document_0457.txt",
-      "expert_grnti_code": "76.01.07",
-      "expert_grnti_name": "Системный анализ, управление и обработка информации в военном деле",
-      "predicted_grnti_code": "76.29.05", // Система ошиблась
-      "predicted_grnti_name": "Авиационное вооружение",
+      "code": "78.01.03",
       "similarity": 0.89,
-      "top_5_predictions": [
-        ["76.29.05", 0.89], // Ложноположительное срабатывание
-        ["76.01.07", 0.85], // Правильный код был на 2-м месте
-        ["76.03.03", 0.07],
-        ["76.15.11", 0.04],
-        ["76.17.01", 0.03]
-      ]
     }
   ],
-  "confusion_matrix_url": "/api/grnti-classification/results/987e6543.../confusion_matrix.png",
-  "report_url": "/api/grnti-classification/results/987e6543.../detailed_report.pdf"
 }
 ```
 Ошибки:
@@ -751,6 +695,18 @@ POST /api/evaluation/precision HTTP/1.1
 Content-Type: application/json
 x-classification-job-id: 123e4567-e89b-12d3-a456-426614174000 # ID решения задачи 11/12
 x-evaluation-type: cluster|grnti  # тип классификации: cluster (Задача 11) или grnti (Задача 12)
+
+{
+"ground_truth": [   // эталонные метки из оболочки
+    {
+      "file": "doc1.txt",
+      "expert_label": "cluster1"
+    },
+    // еще 999 файлов
+  ]
+}
+
+
 ```
 
 Ответ:
@@ -840,6 +796,17 @@ POST /api/evaluation/recall HTTP/1.1
 Content-Type: application/json
 x-classification-job-id: 123e4567-e89b-12d3-a456-426614174000 # ID решения задачи 11/12
 x-evaluation-type: cluster|grnti  # тип классификации: cluster (Задача 11) или grnti (Задача 12)
+
+{
+"ground_truth": [   // эталонные метки из оболочки
+    {
+      "file": "doc1.txt",
+      "expert_label": "cluster1"
+    },
+    // остальные файлы
+  ]
+}
+
 ```
 
 Ответ:
